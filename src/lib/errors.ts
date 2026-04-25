@@ -74,3 +74,14 @@ export class ModDownloadError extends Error {
 		this.httpStatus = httpStatus;
 	}
 }
+
+// --- Extraction errors ---
+
+export class PathTraversalError extends Error {
+	filePath: string;
+	constructor(filePath: string) {
+		super(`Path traversal detected: ${filePath}`);
+		this.name = 'PathTraversalError';
+		this.filePath = filePath;
+	}
+}

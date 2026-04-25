@@ -2,6 +2,16 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { fetchRegistry, type BrowseMod, type ModType } from '$lib/registry.js';
 	import { downloadModZip, type DownloadProgress } from '$lib/download.js';
+	import { extractModZipAsync, repackageModZipAsync } from '$lib/extraction.js';
+	import {
+		isFileSystemAccessSupported,
+		pickVaultDirectory,
+		checkVaultDirectory,
+		clearDirectory,
+		writeVault,
+		setInstalledMod,
+	} from '$lib/vault.js';
+	import { PathTraversalError, ModDownloadError } from '$lib/errors.js';
 	import { getToken } from '$lib/devsettings.js';
 
 	let mods = $state<BrowseMod[]>([]);
@@ -15,6 +25,10 @@
 	let downloadProgress = $state<DownloadProgress | null>(null);
 	let downloadError = $state<string | null>(null);
 	let lastDownloadedId = $state<string | null>(null);
+	let writeProgress = $state<string | null>(null);
+
+	// Remembered directory handle (persists across downloads in the same session)
+	let vaultDirHandle = $state<FileSystemDirectoryHandle | null>(null);
 
 	const TYPE_FILTERS: { value: ModType | 'all'; label: () => string }[] = [
 		{ value: 'all', label: m.filter_all },
@@ -67,29 +81,101 @@
 		downloadProgress = null;
 		downloadError = null;
 		lastDownloadedId = null;
+		writeProgress = null;
 		try {
 			const token = getToken() ?? undefined;
+
+			// Pick vault directory while user gesture is still active (before async work)
+			if (isFileSystemAccessSupported() && !vaultDirHandle) {
+				vaultDirHandle = await pickVaultDirectory();
+			}
+
+			// Check folder contents before starting the download
+			if (isFileSystemAccessSupported()) {
+				const vaultStatus = await checkVaultDirectory(vaultDirHandle!);
+
+				if (vaultStatus === 'unrecognized') {
+					downloadError = m.error_vault_safety();
+					vaultDirHandle = null;
+					return;
+				}
+
+				if (vaultStatus === 'existing-vault') {
+					const ok = confirm(m.confirm_replace_vault({ modName: mod.name }));
+					if (!ok) return;
+				}
+			}
+
 			const zipBuffer = await downloadModZip(mod, {
 				token,
 				onProgress: (p) => {
 					downloadProgress = p;
 				},
 			});
-			// Temporary: trigger browser download so we can validate the zip
-			const blob = new Blob([zipBuffer], { type: 'application/zip' });
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = `${mod.id}.zip`;
-			a.click();
-			URL.revokeObjectURL(url);
-			lastDownloadedId = mod.id;
+
+			if (isFileSystemAccessSupported()) {
+				const dirHandle = vaultDirHandle!;
+
+				// Extract with security checks (off the main thread)
+				writeProgress = m.extracting_mod();
+				const files = await extractModZipAsync(zipBuffer);
+
+				// Clear existing content and write new files
+				await clearDirectory(dirHandle);
+				writeProgress = m.writing_vault_progress({ written: 0, total: files.length });
+				await writeVault(dirHandle, files, {
+					onProgress: (written, total) => {
+						writeProgress = m.writing_vault_progress({ written, total });
+					},
+				});
+
+				// Track what's installed
+				setInstalledMod({
+					id: mod.id,
+					name: mod.name,
+					version: mod.latestVersion,
+					commitHash: mod.commitHash,
+				});
+
+				lastDownloadedId = mod.id;
+			} else {
+				// Fallback: extract, filter unsafe content, re-zip, and trigger browser download
+				writeProgress = m.extracting_mod();
+				const cleanZip = await repackageModZipAsync(zipBuffer);
+				const blob = new Blob([cleanZip], { type: 'application/zip' });
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = `${mod.id}.zip`;
+				a.click();
+				URL.revokeObjectURL(url);
+				lastDownloadedId = mod.id;
+			}
 		} catch (err) {
-			console.error('Mod download failed:', err);
-			downloadError = m.error_download_failed();
+			console.error('Mod install failed:', err);
+			if (err instanceof PathTraversalError) {
+				downloadError = m.error_extraction_security();
+			} else if (err instanceof DOMException && err.name === 'AbortError') {
+				// User cancelled the directory picker - not an error
+				downloadError = null;
+			} else if (err instanceof ModDownloadError) {
+				if (err.httpStatus >= 500) {
+					downloadError = m.error_download_server();
+				} else if (err.httpStatus === 404 || err.httpStatus === 403) {
+					downloadError = m.error_download_not_found();
+				} else {
+					downloadError = m.error_download_failed();
+				}
+			} else if (err instanceof TypeError && err.message.includes('fetch')) {
+				// Network error (offline, DNS failure, etc.)
+				downloadError = m.error_download_network();
+			} else {
+				downloadError = m.error_download_failed();
+			}
 		} finally {
 			downloadingId = null;
 			downloadProgress = null;
+			writeProgress = null;
 		}
 	}
 </script>
@@ -144,20 +230,28 @@
 						<div class="mod-actions">
 							{#if downloadingId === mod.id}
 								<button class="play-button" disabled>
-									{m.downloading()}
-									{#if downloadProgress?.totalBytes}
-										({Math.round((downloadProgress.receivedBytes / downloadProgress.totalBytes) * 100)}%)
+									{#if writeProgress}
+										{writeProgress}
+									{:else}
+										{m.downloading()}
+										{#if downloadProgress}
+											{#if downloadProgress.totalBytes}
+												({Math.round((downloadProgress.receivedBytes / downloadProgress.totalBytes) * 100)}%)
+											{:else}
+												({(downloadProgress.receivedBytes / 1024).toFixed(0)} KB)
+											{/if}
+										{/if}
 									{/if}
 								</button>
 							{:else if lastDownloadedId === mod.id}
-								<span class="download-success">{m.download_complete()}</span>
+								<span class="download-success">{m.vault_write_complete()}</span>
 							{:else}
 								<button
 									class="play-button"
 									disabled={downloadingId !== null}
 									onclick={() => handleDownload(mod)}
 								>
-									{m.play_button()}
+									{m.install_button()}
 								</button>
 							{/if}
 							{#if downloadError && downloadingId === null && lastDownloadedId !== mod.id}
