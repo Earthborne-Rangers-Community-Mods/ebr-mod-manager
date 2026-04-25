@@ -1,12 +1,20 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
 	import { fetchRegistry, type BrowseMod, type ModType } from '$lib/registry.js';
+	import { downloadModZip, type DownloadProgress } from '$lib/download.js';
+	import { getToken } from '$lib/devsettings.js';
 
 	let mods = $state<BrowseMod[]>([]);
 	let loading = $state(true);
 	let error = $state('');
 	let searchQuery = $state('');
 	let activeTypeFilter = $state<ModType | 'all'>('all');
+
+	// Track per-mod download state by mod id
+	let downloadingId = $state<string | null>(null);
+	let downloadProgress = $state<DownloadProgress | null>(null);
+	let downloadError = $state<string | null>(null);
+	let lastDownloadedId = $state<string | null>(null);
 
 	const TYPE_FILTERS: { value: ModType | 'all'; label: () => string }[] = [
 		{ value: 'all', label: m.filter_all },
@@ -52,6 +60,38 @@
 	$effect(() => {
 		loadRegistry();
 	});
+
+	async function handleDownload(mod: BrowseMod) {
+		if (downloadingId) return;
+		downloadingId = mod.id;
+		downloadProgress = null;
+		downloadError = null;
+		lastDownloadedId = null;
+		try {
+			const token = getToken() ?? undefined;
+			const zipBuffer = await downloadModZip(mod, {
+				token,
+				onProgress: (p) => {
+					downloadProgress = p;
+				},
+			});
+			// Temporary: trigger browser download so we can validate the zip
+			const blob = new Blob([zipBuffer], { type: 'application/zip' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `${mod.id}.zip`;
+			a.click();
+			URL.revokeObjectURL(url);
+			lastDownloadedId = mod.id;
+		} catch (err) {
+			console.error('Mod download failed:', err);
+			downloadError = m.error_download_failed();
+		} finally {
+			downloadingId = null;
+			downloadProgress = null;
+		}
+	}
 </script>
 
 <section class="browse">
@@ -99,6 +139,29 @@
 								<span class="mod-safety safe">{m.mod_detail_safe_mid_campaign()}</span>
 							{:else}
 								<span class="mod-safety unsafe">{m.mod_detail_not_safe_mid_campaign()}</span>
+							{/if}
+						</div>
+						<div class="mod-actions">
+							{#if downloadingId === mod.id}
+								<button class="play-button" disabled>
+									{m.downloading()}
+									{#if downloadProgress?.totalBytes}
+										({Math.round((downloadProgress.receivedBytes / downloadProgress.totalBytes) * 100)}%)
+									{/if}
+								</button>
+							{:else if lastDownloadedId === mod.id}
+								<span class="download-success">{m.download_complete()}</span>
+							{:else}
+								<button
+									class="play-button"
+									disabled={downloadingId !== null}
+									onclick={() => handleDownload(mod)}
+								>
+									{m.play_button()}
+								</button>
+							{/if}
+							{#if downloadError && downloadingId === null && lastDownloadedId !== mod.id}
+								<span class="download-error">{downloadError}</span>
 							{/if}
 						</div>
 					</div>
@@ -244,6 +307,44 @@
 	}
 
 	.mod-safety.unsafe {
+		color: var(--color-error);
+	}
+
+	.mod-actions {
+		margin-top: 0.5rem;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.play-button {
+		font-size: 0.8125rem;
+		padding: 0.375rem 1rem;
+		background: var(--color-primary);
+		color: #fff;
+		border: none;
+		border-radius: var(--radius);
+		cursor: pointer;
+		transition: opacity 0.15s;
+	}
+
+	.play-button:hover:not(:disabled) {
+		opacity: 0.85;
+	}
+
+	.play-button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.download-success {
+		font-size: 0.8125rem;
+		color: #2a9d2a;
+		font-weight: 500;
+	}
+
+	.download-error {
+		font-size: 0.8125rem;
 		color: var(--color-error);
 	}
 </style>

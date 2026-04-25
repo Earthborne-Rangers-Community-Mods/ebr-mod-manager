@@ -59,3 +59,18 @@ export class InvalidRepoUrlError extends Error {
 		this.repoUrl = repoUrl;
 	}
 }
+
+// --- Download errors ---
+
+export class ModDownloadError extends Error {
+	commitHash: string;
+	url: string;
+	httpStatus: number;
+	constructor(commitHash: string, url: string, httpStatus: number, statusText: string) {
+		super(`Mod download failed for commit ${commitHash}: ${httpStatus} ${statusText}`);
+		this.name = 'ModDownloadError';
+		this.commitHash = commitHash;
+		this.url = url;
+		this.httpStatus = httpStatus;
+	}
+}

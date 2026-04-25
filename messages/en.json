@@ -21,8 +21,10 @@
   "play_button": "Play",
   "open_in_obsidian": "Open in Obsidian",
   "downloading": "Downloading...",
+  "download_complete": "Downloaded!",
   "no_mods_found": "No mods found.",
   "loading_registry": "Loading mods...",
   "error_registry_fetch": "Could not load the mod registry.",
-  "error_download_failed": "Download failed. Please try again."
+  "error_download_failed": "Download failed. Please try again.",
+  "dev_panel_explanation": "This is a developer tool for testing the mod manager. If you opened this by accident, press Ctrl+` or click X to close it. Regular users do not need this panel."
 }

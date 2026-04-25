@@ -18,4 +18,14 @@ export default defineConfig({
       '$lib': path.resolve('./src/lib'),
     },
   },
+  server: {
+    proxy: {
+      '/github-api': {
+        target: 'https://api.github.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/github-api/, ''),
+        followRedirects: true,
+      },
+    },
+  },
 });

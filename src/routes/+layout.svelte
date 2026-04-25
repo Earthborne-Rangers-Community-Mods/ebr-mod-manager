@@ -1,9 +1,27 @@
 <script lang="ts">
 	import '../app.css';
 	import * as m from '$lib/paraglide/messages.js';
+	import DevPanel from '$lib/ui/DevPanel.svelte';
+	import { isDevPanelOpen, setDevPanelOpen } from '$lib/devsettings.js';
 
 	let { children } = $props();
+
+	let showDevPanel = $state(isDevPanelOpen());
+
+	function toggleDevPanel() {
+		showDevPanel = !showDevPanel;
+		setDevPanelOpen(showDevPanel);
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.ctrlKey && e.key === '`') {
+			e.preventDefault();
+			toggleDevPanel();
+		}
+	}
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <header class="app-header">
 	<div class="container header-inner">
@@ -14,6 +32,10 @@
 <main class="container">
 	{@render children()}
 </main>
+
+{#if showDevPanel}
+	<DevPanel onclose={toggleDevPanel} />
+{/if}
 
 <style>
 	.app-header {
