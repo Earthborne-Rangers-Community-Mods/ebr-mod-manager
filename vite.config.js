@@ -1,6 +1,7 @@
 import { paraglideVitePlugin } from '@inlang/paraglide-js'
 import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
+import path from "node:path";
 
 export default defineConfig({
   plugins: [
@@ -11,4 +12,10 @@ export default defineConfig({
     }),
     sveltekit(),
   ],
+  test: {
+    include: ['tests/**/*.test.ts'],
+    alias: {
+      '$lib': path.resolve('./src/lib'),
+    },
+  },
 });
