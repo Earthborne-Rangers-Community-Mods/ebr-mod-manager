@@ -181,7 +181,10 @@
 </script>
 
 <section class="browse">
-	<h1>{m.browse_mods()}</h1>
+	<div class="page-header">
+		<h1>{m.browse_mods()}</h1>
+		<a class="open-obsidian-button" href="obsidian://choose-vault">{m.open_obsidian()}</a>
+	</div>
 
 	<div class="controls">
 		<input
@@ -267,7 +270,29 @@
 
 <style>
 	.browse h1 {
+		margin-bottom: 0;
+	}
+
+	.page-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 		margin-bottom: 1rem;
+	}
+
+	.open-obsidian-button {
+		font-size: 0.875rem;
+		padding: 0.375rem 0.75rem;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		background: var(--color-surface);
+		color: var(--color-text);
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.open-obsidian-button:hover {
+		background: var(--color-surface-hover, var(--color-surface));
 	}
 
 	.controls {
