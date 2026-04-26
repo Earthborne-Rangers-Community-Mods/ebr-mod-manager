@@ -49,6 +49,10 @@ The dev server runs at `http://localhost:5173` by default. The preview server ru
 The File System Access API requires a secure context (HTTPS or `localhost`). When testing on a phone connected via USB, use ADB port forwarding so the phone sees `localhost`:
 
 ```powershell
+# Build and start the preview server, bound to all interfaces so adb can reach it
+npm run build
+npm run preview -- --host 0.0.0.0
+
 # Forward phone's localhost:4173 to your PC's localhost:4173
 adb reverse tcp:4173 tcp:4173
 

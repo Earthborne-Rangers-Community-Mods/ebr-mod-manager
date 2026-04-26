@@ -19,11 +19,30 @@
 			toggleDevPanel();
 		}
 	}
+
+	const TAP_COUNT = 5;
+	const TAP_WINDOW_MS = 2000;
+	let tapTimestamps: number[] = [];
+
+	function handleHeaderTap(e: MouseEvent) {
+		// Only enable the tap-to-open-dev-panel gesture on touch devices
+		if (!('ontouchstart' in window)) return;
+		const now = Date.now();
+		tapTimestamps.push(now);
+		// Keep only taps within the time window
+		tapTimestamps = tapTimestamps.filter((t) => now - t < TAP_WINDOW_MS);
+		if (tapTimestamps.length >= TAP_COUNT) {
+			e.preventDefault();
+			tapTimestamps = [];
+			toggleDevPanel();
+		}
+	}
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<header class="app-header">
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+<header class="app-header" onclick={handleHeaderTap}>
 	<div class="container header-inner">
 		<a href="/" class="logo">{m.app_title()}</a>
 	</div>
@@ -42,6 +61,8 @@
 		border-bottom: 1px solid var(--color-border);
 		padding: 0.75rem 0;
 		margin-bottom: 1.5rem;
+		-webkit-tap-highlight-color: transparent;
+		user-select: none;
 	}
 
 	.header-inner {
