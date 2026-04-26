@@ -4,11 +4,11 @@
 	import { downloadModZip, type DownloadProgress } from '$lib/download.js';
 	import { extractModZipAsync, repackageModZipAsync } from '$lib/extraction.js';
 	import {
-		isFileSystemAccessSupported,
-		pickVaultDirectory,
-		checkVaultDirectory,
-		clearDirectory,
-		writeVault,
+		getInstallMethod,
+		pickVaultTarget,
+		checkVault,
+		clearVault,
+		writeVaultFiles,
 		setInstalledMod,
 	} from '$lib/vault.js';
 	import { PathTraversalError, ModDownloadError } from '$lib/errors.js';
@@ -26,9 +26,6 @@
 	let downloadError = $state<string | null>(null);
 	let lastDownloadedId = $state<string | null>(null);
 	let writeProgress = $state<string | null>(null);
-
-	// Remembered directory handle (persists across downloads in the same session)
-	let vaultDirHandle = $state<FileSystemDirectoryHandle | null>(null);
 
 	const TYPE_FILTERS: { value: ModType | 'all'; label: () => string }[] = [
 		{ value: 'all', label: m.filter_all },
@@ -84,52 +81,44 @@
 		writeProgress = null;
 		try {
 			const token = getToken() ?? undefined;
+			const method = getInstallMethod();
 
-			// Pick vault directory while user gesture is still active (before async work)
-			if (isFileSystemAccessSupported() && !vaultDirHandle) {
-				vaultDirHandle = await pickVaultDirectory();
-			}
+			if (method === 'vault-write') {
+				// Pick vault target while user gesture is still active (before async work).
+				// The browser remembers the last-picked directory natively.
+				const target = await pickVaultTarget(mod.id);
 
-			// Check folder contents before starting the download
-			if (isFileSystemAccessSupported()) {
-				const vaultStatus = await checkVaultDirectory(vaultDirHandle!);
+				// Check folder contents before starting the download
+				const status = await checkVault(target);
 
-				if (vaultStatus === 'unrecognized') {
+				if (status === 'unrecognized') {
 					downloadError = m.error_vault_safety();
-					vaultDirHandle = null;
 					return;
 				}
 
-				if (vaultStatus === 'existing-vault') {
+				if (status === 'existing-vault') {
 					const ok = confirm(m.confirm_replace_vault({ modName: mod.name }));
 					if (!ok) return;
 				}
-			}
 
-			const zipBuffer = await downloadModZip(mod, {
-				token,
-				onProgress: (p) => {
-					downloadProgress = p;
-				},
-			});
+				const zipBuffer = await downloadModZip(mod, {
+					token,
+					onProgress: (p) => {
+						downloadProgress = p;
+					},
+				});
 
-			if (isFileSystemAccessSupported()) {
-				const dirHandle = vaultDirHandle!;
-
-				// Extract with security checks (off the main thread)
 				writeProgress = m.extracting_mod();
 				const files = await extractModZipAsync(zipBuffer);
 
-				// Clear existing content and write new files
-				await clearDirectory(dirHandle);
+				await clearVault(target);
 				writeProgress = m.writing_vault_progress({ written: 0, total: files.length });
-				await writeVault(dirHandle, files, {
+				await writeVaultFiles(target, files, {
 					onProgress: (written, total) => {
 						writeProgress = m.writing_vault_progress({ written, total });
 					},
 				});
 
-				// Track what's installed
 				setInstalledMod({
 					id: mod.id,
 					name: mod.name,
@@ -139,8 +128,14 @@
 
 				lastDownloadedId = mod.id;
 			} else {
-				// Fallback: extract, filter unsafe content, re-zip, and trigger browser download
-				writeProgress = m.extracting_mod();
+				// Zip download fallback
+				const zipBuffer = await downloadModZip(mod, {
+					token,
+					onProgress: (p) => {
+						downloadProgress = p;
+					},
+				});
+
 				const cleanZip = await repackageModZipAsync(zipBuffer);
 				const blob = new Blob([cleanZip], { type: 'application/zip' });
 				const url = URL.createObjectURL(blob);
@@ -363,12 +358,13 @@
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);
-		cursor: pointer;
 		transition: border-color 0.15s;
 	}
 
-	.mod-card:hover {
-		border-color: var(--color-primary);
+	@media (hover: hover) {
+		.mod-card:hover {
+			border-color: var(--color-primary);
+		}
 	}
 
 	.mod-icon {
@@ -439,12 +435,14 @@
 	.play-button {
 		font-size: 0.8125rem;
 		padding: 0.375rem 1rem;
+		min-height: 2.75rem;
 		background: var(--color-primary);
 		color: #fff;
 		border: none;
 		border-radius: var(--radius);
 		cursor: pointer;
 		transition: opacity 0.15s;
+		touch-action: manipulation;
 	}
 
 	.play-button:hover:not(:disabled) {
