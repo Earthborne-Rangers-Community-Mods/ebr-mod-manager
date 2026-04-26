@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { Filesystem, Directory } from '@capacitor/filesystem';
+import EbrVaultPlugin from './ebr-vault-plugin.js';
 import type { ExtractedFile } from './extraction.js';
 
 // --- Unified vault types ---
@@ -10,7 +10,7 @@ import type { ExtractedFile } from './extraction.js';
  * Internally wraps either a native modId or a browser FileSystemDirectoryHandle.
  */
 export type VaultTarget =
-	| { readonly _platform: 'native'; readonly modId: string }
+	| { readonly _platform: 'native'; readonly uri: string }
 	| { readonly _platform: 'browser'; readonly handle: FileSystemDirectoryHandle };
 
 /** Result of checking a vault target before writing. */
@@ -40,14 +40,19 @@ export function getInstallMethod(): InstallMethod {
 
 /**
  * Open a directory picker appropriate for the current platform.
- * On native: currently returns a Documents-based target for the given modId.
- * Will be replaced with @capawesome/capacitor-file-picker once integrated.
+ * On native: checks for a stored directory from a previous session, then
+ * opens the system directory picker (SAF on Android) if none is stored.
  * On browser: opens showDirectoryPicker().
  * Returns an opaque VaultTarget to pass to subsequent vault operations.
  */
 export async function pickVaultTarget(modId: string): Promise<VaultTarget> {
 	if (Capacitor.isNativePlatform()) {
-		return { _platform: 'native', modId };
+		const stored = await EbrVaultPlugin.getStoredDirectory();
+		if (stored.uri) {
+			return { _platform: 'native', uri: stored.uri };
+		}
+		const picked = await EbrVaultPlugin.pickDirectory();
+		return { _platform: 'native', uri: picked.uri };
 	}
 	const handle = await window.showDirectoryPicker({
 		id: 'ebr-vault',
@@ -59,13 +64,13 @@ export async function pickVaultTarget(modId: string): Promise<VaultTarget> {
 
 /** Check what a vault target contains before writing. */
 export async function checkVault(target: VaultTarget): Promise<VaultCheckResult> {
-	if (target._platform === 'native') return checkVaultNative(target.modId);
+	if (target._platform === 'native') return checkVaultNative();
 	return checkVaultBrowser(target.handle);
 }
 
 /** Remove all contents from a vault target. */
 export async function clearVault(target: VaultTarget): Promise<void> {
-	if (target._platform === 'native') return clearVaultNative(target.modId);
+	if (target._platform === 'native') return clearVaultNative();
 	return clearVaultBrowser(target.handle);
 }
 
@@ -75,58 +80,30 @@ export async function writeVaultFiles(
 	files: ExtractedFile[],
 	options?: { onProgress?: (written: number, total: number) => void },
 ): Promise<void> {
-	if (target._platform === 'native') return writeVaultNative(target.modId, files, options);
+	if (target._platform === 'native') return writeVaultNative(files, options);
 	return writeVaultBrowser(target.handle, files, options);
 }
 
-// --- Native (Capacitor) implementation ---
+// --- Native (Capacitor) implementation via ebr-vault-plugin ---
 
-/**
- * Base directory for mod vaults in shared Documents storage.
- * Files go to: Documents/EBR Mod Manager/<modId>/...
- * This location is accessible to other apps like Obsidian.
- */
-const VAULTS_ROOT = 'EBR Mod Manager';
-
-/** Write extracted mod files to shared Documents storage via @capacitor/filesystem. */
+/** Write extracted mod files to the user-chosen directory via the native plugin. */
 export async function writeVaultNative(
-	modId: string,
 	files: ExtractedFile[],
 	options?: { onProgress?: (written: number, total: number) => void },
 ): Promise<void> {
 	const total = files.length;
 	let written = 0;
-	const basePath = `${VAULTS_ROOT}/${modId}`;
 
-	// Ensure base directory exists
-	await mkdirRecursive(basePath);
-
-	// Collect unique subdirectories and create them
-	const dirs = new Set<string>();
-	for (const file of files) {
-		const lastSlash = file.path.lastIndexOf('/');
-		if (lastSlash !== -1) {
-			dirs.add(file.path.slice(0, lastSlash));
-		}
-	}
-	for (const dir of dirs) {
-		await mkdirRecursive(`${basePath}/${dir}`);
-	}
+	// Prevent Android media scanner from indexing vault images
+	await EbrVaultPlugin.writeFile({ path: '.nomedia', data: '' });
 
 	// Write files with limited concurrency
 	const CONCURRENCY = 6;
 	for (let i = 0; i < files.length; i += CONCURRENCY) {
 		const batch = files.slice(i, i + CONCURRENCY);
 		await Promise.all(batch.map(async (file) => {
-			const filePath = `${basePath}/${file.path}`;
 			const base64 = uint8ArrayToBase64(file.data);
-
-			await Filesystem.writeFile({
-				path: filePath,
-				data: base64,
-				directory: Directory.Documents,
-				recursive: true,
-			});
+			await EbrVaultPlugin.writeFile({ path: file.path, data: base64 });
 
 			written++;
 			options?.onProgress?.(written, total);
@@ -134,22 +111,15 @@ export async function writeVaultNative(
 	}
 }
 
-/** Check if a mod vault directory exists and contains expected markers. */
-export async function checkVaultNative(
-	modId: string,
-): Promise<VaultCheckResult> {
-	const basePath = `${VAULTS_ROOT}/${modId}`;
+/** Check if the user-chosen directory contains expected vault markers. */
+export async function checkVaultNative(): Promise<VaultCheckResult> {
 	try {
-		const result = await Filesystem.readdir({
-			path: basePath,
-			directory: Directory.Documents,
-		});
+		const result = await EbrVaultPlugin.listVaultContents();
 
-		if (result.files.length === 0) return 'empty';
+		if (result.entries.length === 0) return 'empty';
 
-		const names = result.files.map((f) => f.name);
-		const hasModJson = names.includes('ebr-mod.json');
-		const hasObsidian = names.includes('.obsidian');
+		const hasModJson = result.entries.some((e) => e.name === 'ebr-mod.json' && !e.isDirectory);
+		const hasObsidian = result.entries.some((e) => e.name === '.obsidian' && e.isDirectory);
 		if (hasModJson && hasObsidian) return 'existing-vault';
 		return 'unrecognized';
 	} catch {
@@ -157,38 +127,12 @@ export async function checkVaultNative(
 	}
 }
 
-/** Remove a mod vault directory and all its contents. */
-export async function clearVaultNative(modId: string): Promise<void> {
-	const basePath = `${VAULTS_ROOT}/${modId}`;
+/** Remove all contents from the user-chosen directory. */
+export async function clearVaultNative(): Promise<void> {
 	try {
-		await Filesystem.rmdir({
-			path: basePath,
-			directory: Directory.Documents,
-			recursive: true,
-		});
+		await EbrVaultPlugin.clearVaultContents();
 	} catch {
-		// Directory may not exist yet
-	}
-}
-
-/** Get the native file URI for a mod vault directory. */
-export async function getVaultUri(modId: string): Promise<string> {
-	const result = await Filesystem.getUri({
-		path: `${VAULTS_ROOT}/${modId}`,
-		directory: Directory.Documents,
-	});
-	return result.uri;
-}
-
-async function mkdirRecursive(path: string): Promise<void> {
-	try {
-		await Filesystem.mkdir({
-			path,
-			directory: Directory.Documents,
-			recursive: true,
-		});
-	} catch {
-		// Directory may already exist
+		// Directory may not exist or may already be empty
 	}
 }
 

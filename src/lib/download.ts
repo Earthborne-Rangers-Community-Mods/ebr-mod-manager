@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { parseRepoUrl } from './registry.js';
 import { ModDownloadError } from './errors.js';
 
@@ -29,7 +30,7 @@ export async function downloadModZip(
 		onProgress?: (progress: DownloadProgress) => void;
 	},
 ): Promise<ArrayBuffer> {
-	const url = modZipProxyUrl(mod);
+	const url = Capacitor.isNativePlatform() ? modZipUrl(mod) : modZipProxyUrl(mod);
 	const headers: Record<string, string> = {
 		Accept: 'application/vnd.github+json',
 	};

@@ -17,7 +17,7 @@ A lightweight web app for browsing, downloading, and playing community mods for 
 | Frontend | Svelte 5, TypeScript |
 | i18n | paraglide-js (compile-time, typed) |
 | File writes (desktop) | File System Access API (`showDirectoryPicker()`) |
-| File writes (Android) | Capacitor (`@capacitor/filesystem`) |
+| File writes (Android) | Capacitor (custom `ebr-vault-plugin` via SAF) |
 | Hosting | GitHub Pages |
 | Supported browsers | Chrome/Edge desktop (full support). Firefox/Safari (browse-only, zip download fallback). |
 
@@ -64,7 +64,7 @@ adb reverse tcp:4173 tcp:4173
 
 ### Android App (Capacitor)
 
-The Android app wraps the same SvelteKit web app in a native shell and uses `@capacitor/filesystem` for reliable file writes. This bypasses Chrome Android's broken File System Access API (Chromium bug #393681327 -- `createWritable()` fails for long file paths typical in EBR mods).
+The Android app wraps the same SvelteKit web app in a native shell and uses a custom Capacitor plugin (`ebr-vault-plugin`) for reliable file writes. The plugin wraps Android's Storage Access Framework (SAF), letting the user pick any directory and persisting write permissions across app restarts. This bypasses Chrome Android's broken File System Access API (Chromium bug #393681327 -- `createWritable()` fails for long file paths typical in EBR mods) and avoids `@capacitor/filesystem`'s incompatibility with SAF content URIs.
 
 #### Building the Android App
 

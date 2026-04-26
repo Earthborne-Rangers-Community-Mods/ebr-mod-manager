@@ -3,6 +3,10 @@ import { modZipUrl, modZipProxyUrl, downloadModZip } from '$lib/download.js';
 import { ModDownloadError } from '$lib/errors.js';
 import { InvalidRepoUrlError } from '$lib/errors.js';
 
+vi.mock('@capacitor/core', () => ({
+	Capacitor: { isNativePlatform: () => false },
+}));
+
 // --- modZipUrl ---
 
 describe('modZipUrl', () => {

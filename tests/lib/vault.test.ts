@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
 	checkVaultBrowser,
 	writeVaultBrowser,
@@ -8,28 +8,34 @@ import {
 	setInstalledMod,
 	clearInstalledMod,
 	uint8ArrayToBase64,
+	pickVaultTarget,
+	checkVaultNative,
+	clearVaultNative,
+	writeVaultNative,
 } from '$lib/vault.js';
 import type { ExtractedFile } from '$lib/extraction.js';
 
 // --- Mock @capacitor/core ---
 
+const mockIsNative = vi.hoisted(() => vi.fn(() => false));
+
 vi.mock('@capacitor/core', () => ({
-	Capacitor: { isNativePlatform: () => false },
+	Capacitor: { isNativePlatform: mockIsNative },
+	registerPlugin: vi.fn(),
 }));
 
-// --- Mock @capacitor/filesystem ---
+// --- Mock ebr-vault-plugin ---
 
-const mockFilesystem = vi.hoisted(() => ({
-	writeFile: vi.fn(async () => ({})),
-	mkdir: vi.fn(async () => ({})),
-	readdir: vi.fn(async () => ({ files: [] })),
-	rmdir: vi.fn(async () => ({})),
-	getUri: vi.fn(async () => ({ uri: 'file:///mock/path' })),
+const mockPlugin = vi.hoisted(() => ({
+	pickDirectory: vi.fn(async () => ({ uri: 'content://mock/picked' })),
+	getStoredDirectory: vi.fn(async () => ({ uri: null as string | null })),
+	listVaultContents: vi.fn(async () => ({ entries: [] as Array<{ name: string; isDirectory: boolean }> })),
+	writeFile: vi.fn(async () => undefined),
+	clearVaultContents: vi.fn(async () => undefined),
 }));
 
-vi.mock('@capacitor/filesystem', () => ({
-	Filesystem: mockFilesystem,
-	Directory: { Documents: 'DOCUMENTS' },
+vi.mock('$lib/ebr-vault-plugin.js', () => ({
+	default: mockPlugin,
 }));
 
 // --- Mock FileSystemDirectoryHandle helpers ---
@@ -286,6 +292,12 @@ describe('installed mod tracking', () => {
 // --- getInstallMethod ---
 
 describe('getInstallMethod', () => {
+	it('returns vault-write on native platform', () => {
+		mockIsNative.mockReturnValue(true);
+		expect(getInstallMethod()).toBe('vault-write');
+		mockIsNative.mockReturnValue(false);
+	});
+
 	it('returns vault-write when showDirectoryPicker is available', () => {
 		(window as any).showDirectoryPicker = vi.fn();
 		expect(getInstallMethod()).toBe('vault-write');
@@ -297,65 +309,99 @@ describe('getInstallMethod', () => {
 	});
 });
 
-// --- Capacitor vault operations ---
+// --- Capacitor vault operations (via ebr-vault-plugin) ---
 
-describe('writeVaultNative', () => {
-	let writeVaultNative: typeof import('$lib/vault.js').writeVaultNative;
-
-	beforeEach(async () => {
+describe('pickVaultTarget (native)', () => {
+	beforeEach(() => {
 		vi.clearAllMocks();
-		const mod = await import('$lib/vault.js');
-		writeVaultNative = mod.writeVaultNative;
+		mockIsNative.mockReturnValue(true);
 	});
 
-	it('writes files under the vault root directory', async () => {
+	afterEach(() => {
+		mockIsNative.mockReturnValue(false);
+	});
+
+	it('returns stored directory if available', async () => {
+		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: 'content://stored/uri' });
+
+		const target = await pickVaultTarget('test-mod');
+
+		expect(target).toEqual({ _platform: 'native', uri: 'content://stored/uri' });
+		expect(mockPlugin.pickDirectory).not.toHaveBeenCalled();
+	});
+
+	it('opens picker when no stored directory exists', async () => {
+		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: null });
+		mockPlugin.pickDirectory.mockResolvedValueOnce({ uri: 'content://newly/picked' });
+
+		const target = await pickVaultTarget('test-mod');
+
+		expect(target).toEqual({ _platform: 'native', uri: 'content://newly/picked' });
+		expect(mockPlugin.pickDirectory).toHaveBeenCalled();
+	});
+
+	it('checks stored directory before opening picker', async () => {
+		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: 'content://existing' });
+
+		await pickVaultTarget('any-mod');
+
+		expect(mockPlugin.getStoredDirectory).toHaveBeenCalledOnce();
+		expect(mockPlugin.pickDirectory).not.toHaveBeenCalled();
+	});
+});
+
+describe('writeVaultNative', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('calls writeFile for each file with correct path and base64 data', async () => {
 		const files: ExtractedFile[] = [
 			{ path: 'README.md', data: new TextEncoder().encode('# Hello') },
 			{ path: 'ebr-mod.json', data: new TextEncoder().encode('{}') },
 		];
 
-		await writeVaultNative('test-mod', files);
+		await writeVaultNative(files);
 
-		expect(mockFilesystem.mkdir).toHaveBeenCalledWith({
-			path: 'EBR Mod Manager/test-mod',
-			directory: 'DOCUMENTS',
-			recursive: true,
+		// 3 calls: .nomedia + 2 content files
+		expect(mockPlugin.writeFile).toHaveBeenCalledTimes(3);
+		expect(mockPlugin.writeFile).toHaveBeenCalledWith({
+			path: '.nomedia',
+			data: '',
 		});
-
-		expect(mockFilesystem.writeFile).toHaveBeenCalledTimes(2);
-		expect(mockFilesystem.writeFile).toHaveBeenCalledWith(
-			expect.objectContaining({
-				path: 'EBR Mod Manager/test-mod/README.md',
-				directory: 'DOCUMENTS',
-				recursive: true,
-			}),
-		);
-		expect(mockFilesystem.writeFile).toHaveBeenCalledWith(
-			expect.objectContaining({
-				path: 'EBR Mod Manager/test-mod/ebr-mod.json',
-				directory: 'DOCUMENTS',
-				recursive: true,
-			}),
-		);
+		expect(mockPlugin.writeFile).toHaveBeenCalledWith({
+			path: 'README.md',
+			data: btoa('# Hello'),
+		});
+		expect(mockPlugin.writeFile).toHaveBeenCalledWith({
+			path: 'ebr-mod.json',
+			data: btoa('{}'),
+		});
 	});
 
-	it('creates subdirectories before writing nested files', async () => {
+	it('passes nested paths directly to the plugin', async () => {
 		const files: ExtractedFile[] = [
 			{ path: '.obsidian/snippets/theme.css', data: new TextEncoder().encode('.x {}') },
 		];
 
-		await writeVaultNative('test-mod', files);
+		await writeVaultNative(files);
 
-		expect(mockFilesystem.mkdir).toHaveBeenCalledWith({
-			path: 'EBR Mod Manager/test-mod',
-			directory: 'DOCUMENTS',
-			recursive: true,
+		expect(mockPlugin.writeFile).toHaveBeenCalledWith({
+			path: '.obsidian/snippets/theme.css',
+			data: btoa('.x {}'),
 		});
-		expect(mockFilesystem.mkdir).toHaveBeenCalledWith({
-			path: 'EBR Mod Manager/test-mod/.obsidian/snippets',
-			directory: 'DOCUMENTS',
-			recursive: true,
-		});
+	});
+
+	it('writes .nomedia before content files', async () => {
+		const files: ExtractedFile[] = [
+			{ path: 'cover.png', data: new Uint8Array([137, 80, 78, 71]) },
+		];
+
+		await writeVaultNative(files);
+
+		const calls = mockPlugin.writeFile.mock.calls.map((c: any) => c[0].path);
+		expect(calls[0]).toBe('.nomedia');
+		expect(calls[1]).toBe('cover.png');
 	});
 
 	it('reports progress via callback', async () => {
@@ -366,7 +412,7 @@ describe('writeVaultNative', () => {
 		];
 
 		const progressCalls: [number, number][] = [];
-		await writeVaultNative('test-mod', files, {
+		await writeVaultNative(files, {
 			onProgress: (written, total) => progressCalls.push([written, total]),
 		});
 
@@ -381,121 +427,91 @@ describe('writeVaultNative', () => {
 		const data = new Uint8Array([72, 101, 108, 108, 111]); // "Hello"
 		const files: ExtractedFile[] = [{ path: 'test.txt', data }];
 
-		await writeVaultNative('test-mod', files);
+		await writeVaultNative(files);
 
-		expect(mockFilesystem.writeFile).toHaveBeenCalledWith(
-			expect.objectContaining({
-				data: btoa('Hello'),
-			}),
-		);
+		expect(mockPlugin.writeFile).toHaveBeenCalledWith({
+			path: 'test.txt',
+			data: btoa('Hello'),
+		});
 	});
 });
 
 describe('checkVaultNative', () => {
-	let checkVaultNative: typeof import('$lib/vault.js').checkVaultNative;
-
-	beforeEach(async () => {
+	beforeEach(() => {
 		vi.clearAllMocks();
-		const mod = await import('$lib/vault.js');
-		checkVaultNative = mod.checkVaultNative;
 	});
 
-	it('returns missing when directory does not exist', async () => {
-		mockFilesystem.readdir.mockRejectedValueOnce(new Error('not found'));
-		await expect(checkVaultNative('test-mod')).resolves.toBe('missing');
+	it('returns missing when plugin throws', async () => {
+		mockPlugin.listVaultContents.mockRejectedValueOnce(new Error('not found'));
+		await expect(checkVaultNative()).resolves.toBe('missing');
 	});
 
-	it('returns empty when directory has no files', async () => {
-		mockFilesystem.readdir.mockResolvedValueOnce({ files: [] });
-		await expect(checkVaultNative('test-mod')).resolves.toBe('empty');
+	it('returns empty when directory has no entries', async () => {
+		mockPlugin.listVaultContents.mockResolvedValueOnce({ entries: [] });
+		await expect(checkVaultNative()).resolves.toBe('empty');
 	});
 
 	it('returns existing-vault when both markers are present', async () => {
-		mockFilesystem.readdir.mockResolvedValueOnce({
-			files: [
-				{ name: 'ebr-mod.json', type: 'file' },
-				{ name: '.obsidian', type: 'directory' },
+		mockPlugin.listVaultContents.mockResolvedValueOnce({
+			entries: [
+				{ name: 'ebr-mod.json', isDirectory: false },
+				{ name: '.obsidian', isDirectory: true },
 			],
 		});
-		await expect(checkVaultNative('test-mod')).resolves.toBe('existing-vault');
+		await expect(checkVaultNative()).resolves.toBe('existing-vault');
 	});
 
 	it('returns unrecognized when only one marker is present', async () => {
-		mockFilesystem.readdir.mockResolvedValueOnce({
-			files: [{ name: 'ebr-mod.json', type: 'file' }],
+		mockPlugin.listVaultContents.mockResolvedValueOnce({
+			entries: [{ name: 'ebr-mod.json', isDirectory: false }],
 		});
-		await expect(checkVaultNative('test-mod')).resolves.toBe('unrecognized');
+		await expect(checkVaultNative()).resolves.toBe('unrecognized');
 	});
 
 	it('returns unrecognized when folder has non-marker files', async () => {
-		mockFilesystem.readdir.mockResolvedValueOnce({
-			files: [
-				{ name: 'personal-diary.md', type: 'file' },
-				{ name: 'projects', type: 'directory' },
+		mockPlugin.listVaultContents.mockResolvedValueOnce({
+			entries: [
+				{ name: 'personal-diary.md', isDirectory: false },
+				{ name: 'projects', isDirectory: true },
 			],
 		});
-		await expect(checkVaultNative('test-mod')).resolves.toBe('unrecognized');
+		await expect(checkVaultNative()).resolves.toBe('unrecognized');
 	});
 
-	it('reads from the correct path', async () => {
-		mockFilesystem.readdir.mockResolvedValueOnce({ files: [] });
-		await checkVaultNative('my-mod');
-
-		expect(mockFilesystem.readdir).toHaveBeenCalledWith({
-			path: 'EBR Mod Manager/my-mod',
-			directory: 'DOCUMENTS',
+	it('does not match ebr-mod.json as a directory', async () => {
+		mockPlugin.listVaultContents.mockResolvedValueOnce({
+			entries: [
+				{ name: 'ebr-mod.json', isDirectory: true },
+				{ name: '.obsidian', isDirectory: true },
+			],
 		});
+		await expect(checkVaultNative()).resolves.toBe('unrecognized');
+	});
+
+	it('does not match .obsidian as a file', async () => {
+		mockPlugin.listVaultContents.mockResolvedValueOnce({
+			entries: [
+				{ name: 'ebr-mod.json', isDirectory: false },
+				{ name: '.obsidian', isDirectory: false },
+			],
+		});
+		await expect(checkVaultNative()).resolves.toBe('unrecognized');
 	});
 });
 
 describe('clearVaultNative', () => {
-	let clearVaultNative: typeof import('$lib/vault.js').clearVaultNative;
-
-	beforeEach(async () => {
+	beforeEach(() => {
 		vi.clearAllMocks();
-		const mod = await import('$lib/vault.js');
-		clearVaultNative = mod.clearVaultNative;
 	});
 
-	it('removes the vault directory recursively', async () => {
-		await clearVaultNative('test-mod');
-
-		expect(mockFilesystem.rmdir).toHaveBeenCalledWith({
-			path: 'EBR Mod Manager/test-mod',
-			directory: 'DOCUMENTS',
-			recursive: true,
-		});
+	it('calls clearVaultContents on the plugin', async () => {
+		await clearVaultNative();
+		expect(mockPlugin.clearVaultContents).toHaveBeenCalledOnce();
 	});
 
-	it('does not throw when directory does not exist', async () => {
-		mockFilesystem.rmdir.mockRejectedValueOnce(new Error('not found'));
-		await expect(clearVaultNative('test-mod')).resolves.toBeUndefined();
-	});
-});
-
-describe('getVaultUri', () => {
-	let getVaultUri: typeof import('$lib/vault.js').getVaultUri;
-
-	beforeEach(async () => {
-		vi.clearAllMocks();
-		const mod = await import('$lib/vault.js');
-		getVaultUri = mod.getVaultUri;
-	});
-
-	it('returns the native file URI', async () => {
-		mockFilesystem.getUri.mockResolvedValueOnce({
-			uri: 'file:///storage/emulated/0/Documents/EBR%20Mod%20Manager/test-mod',
-		});
-		const uri = await getVaultUri('test-mod');
-		expect(uri).toBe('file:///storage/emulated/0/Documents/EBR%20Mod%20Manager/test-mod');
-	});
-
-	it('queries the correct path', async () => {
-		await getVaultUri('my-mod');
-		expect(mockFilesystem.getUri).toHaveBeenCalledWith({
-			path: 'EBR Mod Manager/my-mod',
-			directory: 'DOCUMENTS',
-		});
+	it('does not throw when clearVaultContents fails', async () => {
+		mockPlugin.clearVaultContents.mockRejectedValueOnce(new Error('fail'));
+		await expect(clearVaultNative()).resolves.toBeUndefined();
 	});
 });
 
