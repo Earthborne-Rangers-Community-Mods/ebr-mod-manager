@@ -56,8 +56,10 @@ class EbrVaultPlugin : Plugin() {
 
         storeDirectoryUri(uri.toString())
 
+        val dir = DocumentFile.fromTreeUri(context, uri)
         val ret = JSObject()
         ret.put("uri", uri.toString())
+        ret.put("name", dir?.name ?: JSONObject.NULL)
         call.resolve(ret)
     }
 
@@ -76,7 +78,16 @@ class EbrVaultPlugin : Plugin() {
             }
 
             if (hasPermission) {
-                ret.put("uri", uriString)
+                // Verify the directory still exists on disk (SAF permissions
+                // survive folder deletion, so permission alone is not enough)
+                val dir = DocumentFile.fromTreeUri(context, uri)
+                if (dir != null && dir.exists() && dir.canWrite()) {
+                    ret.put("uri", uriString)
+                    ret.put("name", dir.name ?: JSONObject.NULL)
+                } else {
+                    clearStoredDirectoryUri()
+                    ret.put("uri", JSONObject.NULL)
+                }
             } else {
                 // Permission was revoked; clear the stale reference
                 clearStoredDirectoryUri()
@@ -138,10 +149,12 @@ class EbrVaultPlugin : Plugin() {
         }
 
         val rootDir = DocumentFile.fromTreeUri(context, uriString.toUri()) ?: run {
+            clearStoredDirectoryUri()
             call.reject("Directory not found")
             return
         }
         if (!rootDir.exists()) {
+            clearStoredDirectoryUri()
             call.reject("Directory not found")
             return
         }
@@ -214,12 +227,23 @@ class EbrVaultPlugin : Plugin() {
             return
         }
 
+        val children = dir.listFiles()
+        val total = children.size
+        var deleted = 0
+
         val errors = mutableListOf<String>()
-        for (file in dir.listFiles()) {
+        for (file in children) {
             try {
                 deleteRecursively(file)
             } catch (_: Exception) {
                 errors.add(file.name ?: "unknown")
+            }
+            deleted++
+            if (deleted % 10 == 0 || deleted == total) {
+                val data = JSObject()
+                data.put("deleted", deleted)
+                data.put("total", total)
+                notifyListeners("clearProgress", data)
             }
         }
         if (errors.isNotEmpty()) {

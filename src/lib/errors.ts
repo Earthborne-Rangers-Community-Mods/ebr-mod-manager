@@ -85,3 +85,12 @@ export class PathTraversalError extends Error {
 		this.filePath = filePath;
 	}
 }
+
+// --- Vault errors ---
+
+export class VaultDirectoryMissingError extends Error {
+	constructor() {
+		super('Vault directory no longer exists');
+		this.name = 'VaultDirectoryMissingError';
+	}
+}

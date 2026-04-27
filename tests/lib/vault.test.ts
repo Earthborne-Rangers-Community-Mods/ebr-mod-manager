@@ -9,11 +9,15 @@ import {
 	clearInstalledMod,
 	uint8ArrayToBase64,
 	pickVaultTarget,
+	changeVaultTarget,
+	getVaultFolderName,
+	getStoredVaultFolderName,
 	checkVaultNative,
 	clearVaultNative,
 	writeVaultNative,
 } from '$lib/vault.js';
 import type { ExtractedFile } from '$lib/extraction.js';
+import { VaultDirectoryMissingError } from '$lib/errors.js';
 
 // --- Mock @capacitor/core ---
 
@@ -27,11 +31,12 @@ vi.mock('@capacitor/core', () => ({
 // --- Mock ebr-vault-plugin ---
 
 const mockPlugin = vi.hoisted(() => ({
-	pickDirectory: vi.fn(async () => ({ uri: 'content://mock/picked' })),
-	getStoredDirectory: vi.fn(async () => ({ uri: null as string | null })),
+	pickDirectory: vi.fn(async () => ({ uri: 'content://mock/picked', name: 'picked' })),
+	getStoredDirectory: vi.fn(async () => ({ uri: null as string | null, name: null as string | null })),
 	listVaultContents: vi.fn(async () => ({ entries: [] as Array<{ name: string; isDirectory: boolean }> })),
 	writeFile: vi.fn(async () => undefined),
 	clearVaultContents: vi.fn(async () => undefined),
+	addListener: vi.fn(async () => ({ remove: vi.fn(async () => undefined) })),
 }));
 
 vi.mock('$lib/ebr-vault-plugin.js', () => ({
@@ -322,31 +327,107 @@ describe('pickVaultTarget (native)', () => {
 	});
 
 	it('returns stored directory if available', async () => {
-		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: 'content://stored/uri' });
+		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: 'content://stored/uri', name: 'My Vault' });
 
 		const target = await pickVaultTarget('test-mod');
 
-		expect(target).toEqual({ _platform: 'native', uri: 'content://stored/uri' });
+		expect(target).toEqual({ _platform: 'native', uri: 'content://stored/uri', folderName: 'My Vault' });
 		expect(mockPlugin.pickDirectory).not.toHaveBeenCalled();
 	});
 
 	it('opens picker when no stored directory exists', async () => {
-		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: null });
-		mockPlugin.pickDirectory.mockResolvedValueOnce({ uri: 'content://newly/picked' });
+		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: null, name: null });
+		mockPlugin.pickDirectory.mockResolvedValueOnce({ uri: 'content://newly/picked', name: 'New Vault' });
 
 		const target = await pickVaultTarget('test-mod');
 
-		expect(target).toEqual({ _platform: 'native', uri: 'content://newly/picked' });
+		expect(target).toEqual({ _platform: 'native', uri: 'content://newly/picked', folderName: 'New Vault' });
 		expect(mockPlugin.pickDirectory).toHaveBeenCalled();
 	});
 
 	it('checks stored directory before opening picker', async () => {
-		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: 'content://existing' });
+		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: 'content://existing', name: 'Existing' });
 
 		await pickVaultTarget('any-mod');
 
 		expect(mockPlugin.getStoredDirectory).toHaveBeenCalledOnce();
 		expect(mockPlugin.pickDirectory).not.toHaveBeenCalled();
+	});
+});
+
+describe('changeVaultTarget (native)', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockIsNative.mockReturnValue(true);
+	});
+
+	afterEach(() => {
+		mockIsNative.mockReturnValue(false);
+	});
+
+	it('always opens picker, ignoring stored directory', async () => {
+		mockPlugin.pickDirectory.mockResolvedValueOnce({ uri: 'content://new/picked', name: 'New Folder' });
+
+		const target = await changeVaultTarget();
+
+		expect(target).toEqual({ _platform: 'native', uri: 'content://new/picked', folderName: 'New Folder' });
+		expect(mockPlugin.getStoredDirectory).not.toHaveBeenCalled();
+		expect(mockPlugin.pickDirectory).toHaveBeenCalledOnce();
+	});
+});
+
+describe('getVaultFolderName', () => {
+	it('returns folderName for native targets', () => {
+		const target = { _platform: 'native' as const, uri: 'content://x', folderName: 'My Vault' };
+		expect(getVaultFolderName(target)).toBe('My Vault');
+	});
+
+	it('returns null when native folderName is null', () => {
+		const target = { _platform: 'native' as const, uri: 'content://x', folderName: null };
+		expect(getVaultFolderName(target)).toBeNull();
+	});
+
+	it('returns handle.name for browser targets', () => {
+		const handle = { name: 'Browser Vault' } as FileSystemDirectoryHandle;
+		const target = { _platform: 'browser' as const, handle };
+		expect(getVaultFolderName(target)).toBe('Browser Vault');
+	});
+});
+
+describe('getStoredVaultFolderName', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	afterEach(() => {
+		mockIsNative.mockReturnValue(false);
+	});
+
+	it('returns folder name when native has stored directory', async () => {
+		mockIsNative.mockReturnValue(true);
+		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: 'content://x', name: 'My Vault' });
+
+		const name = await getStoredVaultFolderName();
+
+		expect(name).toBe('My Vault');
+	});
+
+	it('returns null when native has no stored directory', async () => {
+		mockIsNative.mockReturnValue(true);
+		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: null, name: null });
+
+		const name = await getStoredVaultFolderName();
+
+		expect(name).toBeNull();
+	});
+
+	it('returns null on non-native platforms', async () => {
+		mockIsNative.mockReturnValue(false);
+
+		const name = await getStoredVaultFolderName();
+
+		expect(name).toBeNull();
+		expect(mockPlugin.getStoredDirectory).not.toHaveBeenCalled();
 	});
 });
 
@@ -404,6 +485,32 @@ describe('writeVaultNative', () => {
 		expect(calls[1]).toBe('cover.png');
 	});
 
+	it('writes vault markers before other files', async () => {
+		const files: ExtractedFile[] = [
+			{ path: 'Missions/mission-1.md', data: new TextEncoder().encode('m1') },
+			{ path: '.obsidian/snippets/ebr-symbols.css', data: new TextEncoder().encode('.x{}') },
+			{ path: 'cover.png', data: new Uint8Array([137, 80, 78, 71]) },
+			{ path: 'ebr-mod.json', data: new TextEncoder().encode('{}') },
+			{ path: '.obsidian/app.json', data: new TextEncoder().encode('{}') },
+		];
+
+		await writeVaultNative(files);
+
+		const calls = mockPlugin.writeFile.mock.calls.map((c: any) => c[0].path);
+		// .nomedia first, then vault markers, then the rest
+		expect(calls[0]).toBe('.nomedia');
+		const markerPaths = calls.filter((p: string) =>
+			p === 'ebr-mod.json' || p.startsWith('.obsidian/'),
+		);
+		const nonMarkerPaths = calls.filter((p: string) =>
+			p !== '.nomedia' && p !== 'ebr-mod.json' && !p.startsWith('.obsidian/'),
+		);
+		// All markers should appear before any non-marker
+		const lastMarkerIndex = Math.max(...markerPaths.map((p: string) => calls.indexOf(p)));
+		const firstNonMarkerIndex = Math.min(...nonMarkerPaths.map((p: string) => calls.indexOf(p)));
+		expect(lastMarkerIndex).toBeLessThan(firstNonMarkerIndex);
+	});
+
 	it('reports progress via callback', async () => {
 		const files: ExtractedFile[] = [
 			{ path: 'a.md', data: new TextEncoder().encode('a') },
@@ -433,6 +540,14 @@ describe('writeVaultNative', () => {
 			path: 'test.txt',
 			data: btoa('Hello'),
 		});
+	});
+
+	it('throws VaultDirectoryMissingError when directory is gone', async () => {
+		mockPlugin.writeFile.mockRejectedValueOnce(new Error('Directory not found'));
+		const files: ExtractedFile[] = [
+			{ path: 'a.md', data: new TextEncoder().encode('a') },
+		];
+		await expect(writeVaultNative(files)).rejects.toBeInstanceOf(VaultDirectoryMissingError);
 	});
 });
 
@@ -509,9 +624,56 @@ describe('clearVaultNative', () => {
 		expect(mockPlugin.clearVaultContents).toHaveBeenCalledOnce();
 	});
 
-	it('does not throw when clearVaultContents fails', async () => {
+	it('rethrows non-directory-missing errors', async () => {
 		mockPlugin.clearVaultContents.mockRejectedValueOnce(new Error('fail'));
-		await expect(clearVaultNative()).resolves.toBeUndefined();
+		await expect(clearVaultNative()).rejects.toThrow('fail');
+	});
+
+	it('throws VaultDirectoryMissingError when directory is gone', async () => {
+		mockPlugin.clearVaultContents.mockRejectedValueOnce(new Error('Directory not found'));
+		await expect(clearVaultNative()).rejects.toBeInstanceOf(VaultDirectoryMissingError);
+	});
+
+	it('registers and removes a clearProgress listener when onProgress is provided', async () => {
+		const mockRemove = vi.fn(async () => undefined);
+		mockPlugin.addListener.mockResolvedValueOnce({ remove: mockRemove });
+
+		const onProgress = vi.fn();
+		await clearVaultNative({ onProgress });
+
+		expect(mockPlugin.addListener).toHaveBeenCalledWith('clearProgress', expect.any(Function));
+		expect(mockRemove).toHaveBeenCalledOnce();
+	});
+
+	it('forwards clearProgress events to onProgress callback', async () => {
+		let capturedListener: ((data: { deleted: number; total: number }) => void) | undefined;
+		mockPlugin.addListener.mockImplementationOnce(async (_event: string, listener: any) => {
+			capturedListener = listener;
+			return { remove: vi.fn(async () => undefined) };
+		});
+
+		const onProgress = vi.fn();
+		const clearPromise = clearVaultNative({ onProgress });
+
+		// Simulate a progress event from the plugin
+		capturedListener?.({ deleted: 5, total: 10 });
+		expect(onProgress).toHaveBeenCalledWith(5, 10);
+
+		await clearPromise;
+	});
+
+	it('removes listener even when clearVaultContents fails', async () => {
+		const mockRemove = vi.fn(async () => undefined);
+		mockPlugin.addListener.mockResolvedValueOnce({ remove: mockRemove });
+		mockPlugin.clearVaultContents.mockRejectedValueOnce(new Error('fail'));
+
+		await expect(clearVaultNative({ onProgress: vi.fn() })).rejects.toThrow('fail');
+		expect(mockRemove).toHaveBeenCalledOnce();
+	});
+
+	it('does not register a listener when no onProgress is provided', async () => {
+		await clearVaultNative();
+		expect(mockPlugin.addListener).not.toHaveBeenCalled();
 	});
 });
 

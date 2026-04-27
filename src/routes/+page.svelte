@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Capacitor } from '@capacitor/core';
 	import * as m from '$lib/paraglide/messages.js';
 	import { fetchRegistry, type BrowseMod, type ModType } from '$lib/registry.js';
 	import { downloadModZip, type DownloadProgress } from '$lib/download.js';
@@ -6,12 +7,15 @@
 	import {
 		getInstallMethod,
 		pickVaultTarget,
+		changeVaultTarget,
+		getVaultFolderName,
+		getStoredVaultFolderName,
 		checkVault,
 		clearVault,
 		writeVaultFiles,
 		setInstalledMod,
 	} from '$lib/vault.js';
-	import { PathTraversalError, ModDownloadError } from '$lib/errors.js';
+	import { PathTraversalError, ModDownloadError, VaultDirectoryMissingError } from '$lib/errors.js';
 	import { getToken } from '$lib/devsettings.js';
 
 	let mods = $state<BrowseMod[]>([]);
@@ -26,6 +30,7 @@
 	let downloadError = $state<string | null>(null);
 	let lastDownloadedId = $state<string | null>(null);
 	let writeProgress = $state<string | null>(null);
+	let vaultFolderName = $state<string | null>(null);
 
 	const TYPE_FILTERS: { value: ModType | 'all'; label: () => string }[] = [
 		{ value: 'all', label: m.filter_all },
@@ -70,7 +75,19 @@
 
 	$effect(() => {
 		loadRegistry();
+		getStoredVaultFolderName().then((name) => {
+			vaultFolderName = name;
+		});
 	});
+
+	async function handleChangeFolder() {
+		try {
+			const target = await changeVaultTarget();
+			vaultFolderName = getVaultFolderName(target);
+		} catch {
+			// User cancelled the picker -- nothing to do
+		}
+	}
 
 	async function handleDownload(mod: BrowseMod) {
 		if (downloadingId) return;
@@ -87,6 +104,7 @@
 				// Pick vault target while user gesture is still active (before async work).
 				// The browser remembers the last-picked directory natively.
 				const target = await pickVaultTarget(mod.id);
+				vaultFolderName = getVaultFolderName(target);
 
 				// Check folder contents before starting the download
 				const status = await checkVault(target);
@@ -111,7 +129,12 @@
 				writeProgress = m.extracting_mod();
 				const files = await extractModZipAsync(zipBuffer);
 
-				await clearVault(target);
+				writeProgress = m.clearing_vault();
+				await clearVault(target, {
+					onProgress: (deleted, total) => {
+						writeProgress = m.clearing_vault_progress({ deleted, total });
+					},
+				});
 				writeProgress = m.writing_vault_progress({ written: 0, total: files.length });
 				await writeVaultFiles(target, files, {
 					onProgress: (written, total) => {
@@ -150,6 +173,8 @@
 			console.error('Mod install failed:', err);
 			if (err instanceof PathTraversalError) {
 				downloadError = m.error_extraction_security();
+			} else if (err instanceof VaultDirectoryMissingError) {
+				downloadError = m.error_vault_removed();
 			} else if (err instanceof DOMException && err.name === 'AbortError') {
 				// User cancelled the directory picker - not an error
 				downloadError = null;
@@ -178,7 +203,16 @@
 <section class="browse">
 	<div class="page-header">
 		<h1>{m.browse_mods()}</h1>
-		<a class="open-obsidian-button" href="obsidian://choose-vault">{m.open_obsidian()}</a>
+		<div class="header-actions">
+			{#if getInstallMethod() === 'vault-write'}
+				{#if vaultFolderName}
+					<span class="vault-folder-name">{vaultFolderName}</span>
+				{/if}
+				<button class="header-button" onclick={handleChangeFolder}>{m.change_vault_folder()}</button>
+			{/if}
+			<!-- Android doesn't support obsidian://choose-vault; use bare obsidian:// to just open the app -->
+			<a class="header-button" href={Capacitor.isNativePlatform() ? 'obsidian://' : 'obsidian://choose-vault'}>{m.open_obsidian()}</a>
+		</div>
 	</div>
 
 	<div class="controls">
@@ -269,13 +303,27 @@
 	}
 
 	.page-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
 		margin-bottom: 1rem;
 	}
 
-	.open-obsidian-button {
+	.header-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+		margin-top: 0.5rem;
+	}
+
+	.vault-folder-name {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted, #888);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 10rem;
+	}
+
+	.header-button {
 		font-size: 0.875rem;
 		padding: 0.375rem 0.75rem;
 		border: 1px solid var(--color-border);
@@ -284,9 +332,10 @@
 		color: var(--color-text);
 		text-decoration: none;
 		white-space: nowrap;
+		cursor: pointer;
 	}
 
-	.open-obsidian-button:hover {
+	.header-button:hover {
 		background: var(--color-surface-hover, var(--color-surface));
 	}
 
