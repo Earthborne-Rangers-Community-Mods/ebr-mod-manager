@@ -4,6 +4,7 @@ import {
 	checkVaultBrowser,
 	writeVaultBrowser,
 	getInstallMethod,
+	isAndroidBrowser,
 	getInstalledMod,
 	setInstalledMod,
 	clearInstalledMod,
@@ -311,6 +312,40 @@ describe('getInstallMethod', () => {
 	it('returns zip-download when showDirectoryPicker is not available', () => {
 		delete (window as any).showDirectoryPicker;
 		expect(getInstallMethod()).toBe('zip-download');
+	});
+});
+
+describe('isAndroidBrowser', () => {
+	it('returns true on Android browser', () => {
+		const original = navigator.userAgent;
+		Object.defineProperty(navigator, 'userAgent', {
+			value: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/132.0',
+			configurable: true,
+		});
+		expect(isAndroidBrowser()).toBe(true);
+		Object.defineProperty(navigator, 'userAgent', { value: original, configurable: true });
+	});
+
+	it('returns false on desktop browser', () => {
+		const original = navigator.userAgent;
+		Object.defineProperty(navigator, 'userAgent', {
+			value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/132.0',
+			configurable: true,
+		});
+		expect(isAndroidBrowser()).toBe(false);
+		Object.defineProperty(navigator, 'userAgent', { value: original, configurable: true });
+	});
+
+	it('returns false on native platform even with Android user agent', () => {
+		mockIsNative.mockReturnValue(true);
+		const original = navigator.userAgent;
+		Object.defineProperty(navigator, 'userAgent', {
+			value: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/132.0',
+			configurable: true,
+		});
+		expect(isAndroidBrowser()).toBe(false);
+		Object.defineProperty(navigator, 'userAgent', { value: original, configurable: true });
+		mockIsNative.mockReturnValue(false);
 	});
 });
 

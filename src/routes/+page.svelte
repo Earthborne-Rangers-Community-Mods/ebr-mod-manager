@@ -6,6 +6,7 @@
 	import { extractModZipAsync, repackageModZipAsync } from '$lib/extraction.js';
 	import {
 		getInstallMethod,
+		isAndroidBrowser,
 		pickVaultTarget,
 		changeVaultTarget,
 		getVaultFolderName,
@@ -260,7 +261,9 @@
 							{/if}
 						</div>
 						<div class="mod-actions">
-							{#if downloadingId === mod.id}
+							{#if isAndroidBrowser()}
+								<span class="android-browser-message">{m.android_browser_install_blocked()}</span>
+							{:else if downloadingId === mod.id}
 								<button class="play-button" disabled>
 									{#if writeProgress}
 										{writeProgress}
@@ -512,5 +515,11 @@
 	.download-error {
 		font-size: 0.8125rem;
 		color: var(--color-error);
+	}
+
+	.android-browser-message {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		font-style: italic;
 	}
 </style>

@@ -37,6 +37,18 @@ export function getInstallMethod(): InstallMethod {
 	return 'zip-download';
 }
 
+/**
+ * Detect Android browser (not inside the Capacitor native app).
+ * Android Chrome reports File System Access API support but has a Chromium
+ * bug that breaks createWritable() for typical EBR mod path lengths.
+ * Used by the UI to block the install button on Android browser.
+ */
+export function isAndroidBrowser(): boolean {
+	if (Capacitor.isNativePlatform()) return false;
+	if (typeof navigator === 'undefined') return false;
+	return /Android/i.test(navigator.userAgent);
+}
+
 // --- Unified vault operations ---
 
 /**
@@ -92,7 +104,7 @@ export function getVaultFolderName(target: VaultTarget): string | null {
 	return target.handle.name;
 }
 
-/** Get the stored vault folder name without opening a picker. Returns null if none stored. */
+/** Get the stored vault folder name. Returns null if none stored. */
 export async function getStoredVaultFolderName(): Promise<string | null> {
 	if (!Capacitor.isNativePlatform()) return null;
 	const stored = await EbrVaultPlugin.getStoredDirectory();

@@ -17,6 +17,7 @@
   "mod_detail_safe_mid_campaign": "Safe to add mid-campaign",
   "mod_detail_not_safe_mid_campaign": "Not safe to add mid-campaign",
   "install_button": "Install",
+  "android_browser_install_blocked": "Install the EBR Mod Manager app to download mods on Android.",
   "downloading": "Downloading...",
   "no_mods_found": "No mods found.",
   "loading_registry": "Loading mods...",
