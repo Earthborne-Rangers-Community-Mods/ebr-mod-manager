@@ -2,35 +2,18 @@
 	import { Capacitor } from '@capacitor/core';
 	import * as m from '$lib/paraglide/messages.js';
 	import { fetchRegistry, type BrowseMod, type ModType } from '$lib/registry.js';
-	import { downloadModZip, type DownloadProgress } from '$lib/download.js';
-	import { extractModZipAsync, repackageModZipAsync } from '$lib/extraction.js';
 	import {
 		getInstallMethod,
-		isAndroidBrowser,
-		pickVaultTarget,
 		changeVaultTarget,
 		getVaultFolderName,
 		getStoredVaultFolderName,
-		checkVault,
-		clearVault,
-		writeVaultFiles,
-		setInstalledMod,
 	} from '$lib/vault.js';
-	import { PathTraversalError, ModDownloadError, VaultDirectoryMissingError } from '$lib/errors.js';
-	import { getToken } from '$lib/devsettings.js';
 
 	let mods = $state<BrowseMod[]>([]);
 	let loading = $state(true);
 	let error = $state('');
 	let searchQuery = $state('');
 	let activeTypeFilter = $state<ModType | 'all'>('all');
-
-	// Track per-mod download state by mod id
-	let downloadingId = $state<string | null>(null);
-	let downloadProgress = $state<DownloadProgress | null>(null);
-	let downloadError = $state<string | null>(null);
-	let lastDownloadedId = $state<string | null>(null);
-	let writeProgress = $state<string | null>(null);
 	let vaultFolderName = $state<string | null>(null);
 
 	const TYPE_FILTERS: { value: ModType | 'all'; label: () => string }[] = [
@@ -89,116 +72,6 @@
 			// User cancelled the picker -- nothing to do
 		}
 	}
-
-	async function handleDownload(mod: BrowseMod) {
-		if (downloadingId) return;
-		downloadingId = mod.id;
-		downloadProgress = null;
-		downloadError = null;
-		lastDownloadedId = null;
-		writeProgress = null;
-		try {
-			const token = getToken() ?? undefined;
-			const method = getInstallMethod();
-
-			if (method === 'vault-write') {
-				// Pick vault target while user gesture is still active (before async work).
-				// The browser remembers the last-picked directory natively.
-				const target = await pickVaultTarget(mod.id);
-				vaultFolderName = getVaultFolderName(target);
-
-				// Check folder contents before starting the download
-				const status = await checkVault(target);
-
-				if (status === 'unrecognized') {
-					downloadError = m.error_vault_safety();
-					return;
-				}
-
-				if (status === 'existing-vault') {
-					const ok = confirm(m.confirm_replace_vault({ modName: mod.name }));
-					if (!ok) return;
-				}
-
-				const zipBuffer = await downloadModZip(mod, {
-					token,
-					onProgress: (p) => {
-						downloadProgress = p;
-					},
-				});
-
-				writeProgress = m.extracting_mod();
-				const files = await extractModZipAsync(zipBuffer);
-
-				writeProgress = m.clearing_vault();
-				await clearVault(target, {
-					onProgress: (deleted, total) => {
-						writeProgress = m.clearing_vault_progress({ deleted, total });
-					},
-				});
-				writeProgress = m.writing_vault_progress({ written: 0, total: files.length });
-				await writeVaultFiles(target, files, {
-					onProgress: (written, total) => {
-						writeProgress = m.writing_vault_progress({ written, total });
-					},
-				});
-
-				setInstalledMod({
-					id: mod.id,
-					name: mod.name,
-					version: mod.latestVersion,
-					commitHash: mod.commitHash,
-				});
-
-				lastDownloadedId = mod.id;
-			} else {
-				// Zip download fallback
-				const zipBuffer = await downloadModZip(mod, {
-					token,
-					onProgress: (p) => {
-						downloadProgress = p;
-					},
-				});
-
-				const cleanZip = await repackageModZipAsync(zipBuffer);
-				const blob = new Blob([cleanZip], { type: 'application/zip' });
-				const url = URL.createObjectURL(blob);
-				const a = document.createElement('a');
-				a.href = url;
-				a.download = `${mod.id}.zip`;
-				a.click();
-				URL.revokeObjectURL(url);
-				lastDownloadedId = mod.id;
-			}
-		} catch (err) {
-			console.error('Mod install failed:', err);
-			if (err instanceof PathTraversalError) {
-				downloadError = m.error_extraction_security();
-			} else if (err instanceof VaultDirectoryMissingError) {
-				downloadError = m.error_vault_removed();
-			} else if (err instanceof DOMException && err.name === 'AbortError') {
-				// User cancelled the directory picker - not an error
-				downloadError = null;
-			} else if (err instanceof ModDownloadError) {
-				if (err.httpStatus >= 500) {
-					downloadError = m.error_download_server();
-				} else if (err.httpStatus === 404 || err.httpStatus === 403) {
-					downloadError = m.error_download_not_found();
-				} else {
-					downloadError = m.error_download_failed();
-				}
-			} else if (err instanceof TypeError && err.message.includes('fetch')) {
-				// Network error (offline, DNS failure, etc.)
-				downloadError = m.error_download_network();
-			} else {
-				downloadError = m.error_download_failed();
-			}
-		} finally {
-			downloadingId = null;
-			downloadProgress = null;
-			writeProgress = null;
-		}
-	}
 </script>
 
 <section class="browse">
@@ -247,53 +120,22 @@
 		<ul class="mod-list">
 			{#each filteredMods as mod (mod.id)}
 				<li class="mod-card">
-					<div class="mod-icon">{mod.icon ?? ''}</div>
-					<div class="mod-info">
-						<h2 class="mod-name">{mod.name}</h2>
-						<p class="mod-author">{mod.author ? m.mod_detail_author({ author: mod.author }) : m.mod_detail_unknown_author()}</p>
-						<p class="mod-description">{mod.description}</p>
-						<div class="mod-meta">
-							<span class="mod-type-badge">{mod.type}</span>
-							{#if mod.safeToAddMidCampaign}
-								<span class="mod-safety safe">{m.mod_detail_safe_mid_campaign()}</span>
-							{:else}
-								<span class="mod-safety unsafe">{m.mod_detail_not_safe_mid_campaign()}</span>
-							{/if}
+					<a href="/mods/{mod.id}" class="mod-card-link">
+						<div class="mod-icon">{mod.icon ?? ''}</div>
+						<div class="mod-info">
+							<h2 class="mod-name">{mod.name}</h2>
+							<p class="mod-author">{mod.author ? m.mod_detail_author({ author: mod.author }) : m.mod_detail_unknown_author()}</p>
+							<p class="mod-description">{mod.description}</p>
+							<div class="mod-meta">
+								<span class="mod-type-badge">{mod.type}</span>
+								{#if mod.safeToAddMidCampaign}
+									<span class="mod-safety safe">{m.mod_detail_safe_mid_campaign()}</span>
+								{:else}
+									<span class="mod-safety unsafe">{m.mod_detail_not_safe_mid_campaign()}</span>
+								{/if}
+							</div>
 						</div>
-						<div class="mod-actions">
-							{#if isAndroidBrowser()}
-								<span class="android-browser-message">{m.android_browser_install_blocked()}</span>
-							{:else if downloadingId === mod.id}
-								<button class="play-button" disabled>
-									{#if writeProgress}
-										{writeProgress}
-									{:else}
-										{m.downloading()}
-										{#if downloadProgress}
-											{#if downloadProgress.totalBytes}
-												({Math.round((downloadProgress.receivedBytes / downloadProgress.totalBytes) * 100)}%)
-											{:else}
-												({(downloadProgress.receivedBytes / 1024).toFixed(0)} KB)
-											{/if}
-										{/if}
-									{/if}
-								</button>
-							{:else if lastDownloadedId === mod.id}
-								<span class="download-success">{m.vault_write_complete()}</span>
-							{:else}
-								<button
-									class="play-button"
-									disabled={downloadingId !== null}
-									onclick={() => handleDownload(mod)}
-								>
-									{m.install_button()}
-								</button>
-							{/if}
-							{#if downloadError && downloadingId === null && lastDownloadedId !== mod.id}
-								<span class="download-error">{downloadError}</span>
-							{/if}
-						</div>
-					</div>
+					</a>
 				</li>
 			{/each}
 		</ul>
@@ -404,9 +246,6 @@
 	}
 
 	.mod-card {
-		display: flex;
-		gap: 1rem;
-		padding: 1rem;
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);
@@ -417,6 +256,18 @@
 		.mod-card:hover {
 			border-color: var(--color-primary);
 		}
+	}
+
+	.mod-card-link {
+		display: flex;
+		gap: 1rem;
+		padding: 1rem;
+		color: inherit;
+		text-decoration: none;
+	}
+
+	.mod-card-link:hover {
+		text-decoration: none;
 	}
 
 	.mod-icon {
@@ -475,51 +326,5 @@
 
 	.mod-safety.unsafe {
 		color: var(--color-error);
-	}
-
-	.mod-actions {
-		margin-top: 0.5rem;
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-	}
-
-	.play-button {
-		font-size: 0.8125rem;
-		padding: 0.375rem 1rem;
-		min-height: 2.75rem;
-		background: var(--color-primary);
-		color: #fff;
-		border: none;
-		border-radius: var(--radius);
-		cursor: pointer;
-		transition: opacity 0.15s;
-		touch-action: manipulation;
-	}
-
-	.play-button:hover:not(:disabled) {
-		opacity: 0.85;
-	}
-
-	.play-button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.download-success {
-		font-size: 0.8125rem;
-		color: #2a9d2a;
-		font-weight: 500;
-	}
-
-	.download-error {
-		font-size: 0.8125rem;
-		color: var(--color-error);
-	}
-
-	.android-browser-message {
-		font-size: 0.8125rem;
-		color: var(--color-text-muted);
-		font-style: italic;
 	}
 </style>

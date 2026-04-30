@@ -21,6 +21,27 @@ const REGISTRY_BRANCH = 'main';
 
 const RAW_BASE = `https://raw.githubusercontent.com/${REGISTRY_OWNER}/${REGISTRY_REPO}/${REGISTRY_BRANCH}`;
 
+// --- Campaign display names (derived from registry) ---
+
+/** Map from campaign slug to display name, built from campaign-type mods in the registry. */
+let campaignNameMap: Record<string, string> = {};
+
+/** Get the display name for a campaign ID. Returns the slug if unknown. */
+export function getRegistryCampaignName(id: string): string {
+	return campaignNameMap[id] ?? id;
+}
+
+/** Rebuild the campaign name map from registry mods. Called after fetching the registry. */
+function buildCampaignNameMap(mods: BrowseMod[]): void {
+	const map: Record<string, string> = {};
+	for (const mod of mods) {
+		if (mod.type === 'campaign' || mod.type === 'one-day-mission') {
+			map[mod.id] = mod.name;
+		}
+	}
+	campaignNameMap = map;
+}
+
 // --- Fetching ---
 
 /** Fetch and parse the browse-tier registry. */
@@ -119,6 +140,7 @@ export function parseRegistry(data: unknown): Registry {
 			throw err;
 		}
 	}
+	buildCampaignNameMap(mods);
 	return { schemaVersion: obj.schemaVersion, mods };
 }
 

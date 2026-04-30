@@ -5,6 +5,7 @@ import {
 	modFileUrl,
 	coverImageUrl,
 	rewriteImagePaths,
+	getRegistryCampaignName,
 } from '$lib/registry.js';
 import {
 	RegistryParseError,
@@ -367,5 +368,56 @@ describe('rewriteImagePaths', () => {
 	it('returns unchanged markdown with no images', () => {
 		const md = '# Hello\n\nSome text with [a link](page.md).';
 		expect(rewriteImagePaths(md, mod)).toBe(md);
+	});
+});
+
+// --- getRegistryCampaignName ---
+
+describe('getRegistryCampaignName', () => {
+	it('returns the slug when the map is empty', () => {
+		// Before parseRegistry populates the map, unknown IDs return as-is
+		expect(getRegistryCampaignName('unknown-campaign')).toBe('unknown-campaign');
+	});
+
+	it('returns the mod name for campaign-type mods after parseRegistry', () => {
+		parseRegistry(validRegistryData([
+			validMod({ id: 'my-custom-campaign', name: 'My Custom Campaign', type: 'campaign' }),
+		]));
+		expect(getRegistryCampaignName('my-custom-campaign')).toBe('My Custom Campaign');
+	});
+
+	it('returns the mod name for one-day-mission-type mods after parseRegistry', () => {
+		parseRegistry(validRegistryData([
+			validMod({ id: 'rescue-mission', name: 'Rescue Mission', type: 'one-day-mission' }),
+		]));
+		expect(getRegistryCampaignName('rescue-mission')).toBe('Rescue Mission');
+	});
+
+	it('does not include enhancement-type mods in the campaign map', () => {
+		parseRegistry(validRegistryData([
+			validMod({ id: 'some-enhancement', name: 'Some Enhancement', type: 'enhancement' }),
+		]));
+		expect(getRegistryCampaignName('some-enhancement')).toBe('some-enhancement');
+	});
+
+	it('does not include collection-type mods in the campaign map', () => {
+		parseRegistry(validRegistryData([
+			validMod({ id: 'mega-collection', name: 'Mega Collection', type: 'collection' }),
+		]));
+		expect(getRegistryCampaignName('mega-collection')).toBe('mega-collection');
+	});
+
+	it('rebuilds the map on each parseRegistry call', () => {
+		parseRegistry(validRegistryData([
+			validMod({ id: 'campaign-a', name: 'Campaign A', type: 'campaign' }),
+		]));
+		expect(getRegistryCampaignName('campaign-a')).toBe('Campaign A');
+
+		// Second parse with a different campaign replaces the map
+		parseRegistry(validRegistryData([
+			validMod({ id: 'campaign-b', name: 'Campaign B', type: 'campaign' }),
+		]));
+		expect(getRegistryCampaignName('campaign-a')).toBe('campaign-a');
+		expect(getRegistryCampaignName('campaign-b')).toBe('Campaign B');
 	});
 });
