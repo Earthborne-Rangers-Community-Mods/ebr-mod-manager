@@ -1,25 +1,55 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import * as m from '$lib/paraglide/messages.js';
-	import { fetchModDetail, coverImageUrl, type ModDetail } from '$lib/registry.js';
+	import {
+		fetchModDetail,
+		fetchDescription,
+		coverImageUrl,
+		rewriteImagePaths,
+		type ModDetail,
+	} from '$lib/registry.js';
+	import { renderMarkdown } from '$lib/markdown.js';
 	import { resolveCampaignDisplayName, resolveProductDisplayName } from '$lib/catalogs.js';
+	import { getToken } from '$lib/devsettings.js';
 	import InstallButton from '$lib/ui/InstallButton.svelte';
+	import ModDescription from '$lib/ui/ModDescription.svelte';
 
 	let mod = $state<ModDetail | null>(null);
 	let loading = $state(true);
 	let error = $state('');
+	let descriptionHtml = $state<string | null>(null);
 
 	async function loadMod(modId: string) {
 		loading = true;
 		error = '';
 		mod = null;
+		descriptionHtml = null;
 
 		try {
 			mod = await fetchModDetail(modId);
 		} catch {
 			error = m.mod_detail_fetch_error();
+			loading = false;
+			return;
 		}
 		loading = false;
+
+		// Fetch the description page in the background. A missing or failed
+		// fetch falls through to the manifest's short description -- the
+		// detail view stays usable either way. When a GitHub PAT is set in
+		// the dev panel we forward it so private mod repos can be read.
+		const detail = mod;
+		const token = getToken() ?? undefined;
+		try {
+			const md = await fetchDescription(detail, token);
+			if (md !== null && mod === detail) {
+				descriptionHtml = renderMarkdown(rewriteImagePaths(md, detail));
+			}
+		} catch (err) {
+			// Network or fetch error -- silently fall back to mod.description,
+			// but log so devs can spot misconfigured repoUrls / missing tokens.
+			console.warn(`Failed to fetch description for mod '${detail.id}':`, err);
+		}
 	}
 
 	$effect(() => {
@@ -81,6 +111,9 @@
 			</div>
 		</div>
 
+		<!-- Short description from the manifest. The full About this Mod.md -->
+		<!-- (when available) renders at the bottom of the page below all -->
+		<!-- metadata sections. -->
 		<p class="mod-description">{mod.description}</p>
 
 		<!-- Metadata sections -->
@@ -153,6 +186,16 @@
 				</div>
 			{/if}
 		</div>
+
+		{#if descriptionHtml}
+			<section class="about-section">
+				<h2 class="about-heading">{m.mod_detail_description_heading()}</h2>
+				<!-- About this Mod.md fetched from the mod repo at the pinned commit. -->
+				<!-- Rendered inside a shadow root by ModDescription so the EBR -->
+				<!-- base-content CSS snippets cannot leak into surrounding app styles. -->
+				<ModDescription html={descriptionHtml} />
+			</section>
+		{/if}
 
 	{:else}
 		<p class="status-message">{m.mod_detail_not_found()}</p>
@@ -302,6 +345,16 @@
 		font-size: 0.9375rem;
 		font-weight: 600;
 		margin-bottom: 0.375rem;
+		color: var(--color-text);
+	}
+
+	/* --- About section --- */
+
+	.about-heading {
+		font-size: 1.75rem;
+		font-weight: 700;
+		margin-top: 1rem;
+		margin-bottom: 0.75rem;
 		color: var(--color-text);
 	}
 

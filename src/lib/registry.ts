@@ -1,5 +1,7 @@
 // --- Types ---
 
+import { Capacitor } from '@capacitor/core';
+
 import {
 	RegistryFetchError,
 	ModDetailFetchError,
@@ -67,13 +69,29 @@ export async function fetchModDetail(modId: string): Promise<ModDetail> {
 	return data as ModDetail;
 }
 
-/** Fetch Description.md for a mod. Returns null if not found. */
-export async function fetchDescription(mod: {
-	repoUrl: string;
-	commitHash: string;
-}): Promise<string | null> {
-	const url = modFileUrl(mod, 'Description.md');
-	const response = await fetch(url);
+/** Filename of the per-mod description page. Lives at the repo root. */
+export const DESCRIPTION_FILENAME = 'About this Mod.md';
+
+/**
+ * Fetch the About this Mod.md description page for a mod. Returns null if not found.
+ *
+ * When a GitHub PAT is provided, the request is routed through the GitHub Contents
+ * API (via the /github-api dev proxy on web, or directly on native) with an
+ * Authorization header so that private repos can be read. Without a token the
+ * file is fetched anonymously from raw.githubusercontent.com, which only works
+ * for public repos.
+ */
+export async function fetchDescription(
+	mod: { repoUrl: string; commitHash: string },
+	token?: string,
+): Promise<string | null> {
+	const url = token ? contentsApiUrl(mod, DESCRIPTION_FILENAME) : modFileUrl(mod, DESCRIPTION_FILENAME);
+	const headers: Record<string, string> = {};
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+		headers['Accept'] = 'application/vnd.github.raw';
+	}
+	const response = await fetch(url, { headers });
 	if (response.status === 404) {
 		return null;
 	}
@@ -81,6 +99,25 @@ export async function fetchDescription(mod: {
 		throw new DescriptionFetchError(url, response.status, response.statusText);
 	}
 	return response.text();
+}
+
+/**
+ * Build a GitHub Contents API URL for a file in a mod repo at a pinned commit.
+ * Uses the /github-api dev proxy on web (CORS-friendly) and api.github.com
+ * directly on native platforms. Suitable for authenticated requests against
+ * private repos.
+ */
+function contentsApiUrl(
+	mod: { repoUrl: string; commitHash: string },
+	filePath: string,
+): string {
+	const { owner, repo } = parseRepoUrl(mod.repoUrl);
+	const encodedPath = filePath
+		.split('/')
+		.map((segment) => encodeURIComponent(segment))
+		.join('/');
+	const base = Capacitor.isNativePlatform() ? 'https://api.github.com' : '/github-api';
+	return `${base}/repos/${owner}/${repo}/contents/${encodedPath}?ref=${mod.commitHash}`;
 }
 
 // --- URL helpers ---
@@ -91,7 +128,15 @@ export function modFileUrl(
 	filePath: string,
 ): string {
 	const { owner, repo } = parseRepoUrl(mod.repoUrl);
-	return `https://raw.githubusercontent.com/${owner}/${repo}/${mod.commitHash}/${filePath}`;
+	// Encode each path segment so spaces and other reserved characters in
+	// filenames (e.g. "About this Mod.md") produce valid URLs. We split on
+	// '/' and encode segments individually so the path separators are
+	// preserved.
+	const encodedPath = filePath
+		.split('/')
+		.map((segment) => encodeURIComponent(segment))
+		.join('/');
+	return `https://raw.githubusercontent.com/${owner}/${repo}/${mod.commitHash}/${encodedPath}`;
 }
 
 /** Build a cover image URL for a mod, or null if no cover image. */

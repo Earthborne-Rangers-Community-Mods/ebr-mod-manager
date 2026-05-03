@@ -64,7 +64,7 @@ adb reverse tcp:4173 tcp:4173
 
 ### Android App (Capacitor)
 
-The Android app wraps the same SvelteKit web app in a native shell and uses a custom Capacitor plugin (`ebr-vault-plugin`) for reliable file writes. The plugin wraps Android's Storage Access Framework (SAF), letting the user pick any directory and persisting write permissions across app restarts. This bypasses Chrome Android's broken File System Access API (Chromium bug #393681327 -- `createWritable()` fails for long file paths typical in EBR mods) and avoids `@capacitor/filesystem`'s incompatibility with SAF content URIs.
+The Android app wraps the same SvelteKit web app in a native shell and uses a custom Capacitor plugin (`ebr-vault-plugin`) for file writes. The plugin wraps Android's Storage Access Framework (SAF): the user picks any directory, and write permissions persist across app restarts.
 
 #### Building the Android App
 

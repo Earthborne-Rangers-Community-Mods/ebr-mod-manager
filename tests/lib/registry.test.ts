@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
 	parseRegistry,
 	parseRepoUrl,
@@ -6,10 +6,13 @@ import {
 	coverImageUrl,
 	rewriteImagePaths,
 	getRegistryCampaignName,
+	fetchDescription,
+	DESCRIPTION_FILENAME,
 } from '$lib/registry.js';
 import {
 	RegistryParseError,
 	InvalidRepoUrlError,
+	DescriptionFetchError,
 } from '$lib/errors.js';
 import type { BrowseMod } from '$lib/registry.js';
 
@@ -287,6 +290,60 @@ describe('modFileUrl', () => {
 		expect(modFileUrl(mod, 'images/screenshots/demo.png')).toBe(
 			'https://raw.githubusercontent.com/creator/ebr-mod-base-content/abc123/images/screenshots/demo.png',
 		);
+	});
+
+	it('encodes spaces and other reserved characters in path segments', () => {
+		expect(modFileUrl(mod, 'About this Mod.md')).toBe(
+			'https://raw.githubusercontent.com/creator/ebr-mod-base-content/abc123/About%20this%20Mod.md',
+		);
+	});
+
+	it('preserves path separators while encoding segments individually', () => {
+		expect(modFileUrl(mod, 'Pictures/cover image.png')).toBe(
+			'https://raw.githubusercontent.com/creator/ebr-mod-base-content/abc123/Pictures/cover%20image.png',
+		);
+	});
+});
+
+// --- fetchDescription ---
+
+describe('fetchDescription', () => {
+	const mod = {
+		repoUrl: 'https://github.com/creator/ebr-mod-base-content',
+		commitHash: 'abc123',
+	};
+	const expectedUrl =
+		'https://raw.githubusercontent.com/creator/ebr-mod-base-content/abc123/About%20this%20Mod.md';
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('exposes the canonical filename as DESCRIPTION_FILENAME', () => {
+		expect(DESCRIPTION_FILENAME).toBe('About this Mod.md');
+	});
+
+	it('fetches About this Mod.md from the pinned commit and returns its body', async () => {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response('# Hello\n\nBody', { status: 200 }),
+		);
+		const result = await fetchDescription(mod);
+		expect(result).toBe('# Hello\n\nBody');
+		expect(fetchSpy).toHaveBeenCalledWith(expectedUrl, { headers: {} });
+	});
+
+	it('returns null when the file is not present (404)', async () => {
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response('', { status: 404 }),
+		);
+		expect(await fetchDescription(mod)).toBeNull();
+	});
+
+	it('throws DescriptionFetchError on non-OK, non-404 responses', async () => {
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response('', { status: 500, statusText: 'Server Error' }),
+		);
+		await expect(fetchDescription(mod)).rejects.toBeInstanceOf(DescriptionFetchError);
 	});
 });
 
