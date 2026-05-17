@@ -165,26 +165,30 @@
 	.install-section {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--spacing-sm);
 		flex-shrink: 0;
 	}
 
 	.install-button {
-		font-size: 1rem;
-		padding: 0.625rem 2rem;
+		font-size: var(--font-size-base);
+		padding: var(--spacing-sm) var(--spacing-xl);
 		min-height: 2.75rem;
 		background: var(--color-primary);
-		color: #fff;
+		color: var(--color-primary-text);
 		border: none;
 		border-radius: var(--radius);
 		cursor: pointer;
 		font-weight: 600;
-		transition: opacity 0.15s;
+		transition: background var(--transition-fast), transform var(--transition-fast);
 		touch-action: manipulation;
 	}
 
 	.install-button:hover:not(:disabled) {
-		opacity: 0.85;
+		background: var(--color-primary-hover);
+	}
+
+	.install-button:active:not(:disabled) {
+		transform: scale(0.98);
 	}
 
 	.install-button:disabled {
@@ -193,18 +197,18 @@
 	}
 
 	.download-success {
-		font-size: 0.875rem;
-		color: #2a9d2a;
+		font-size: var(--font-size-sm);
+		color: var(--color-success);
 		font-weight: 500;
 	}
 
 	.download-error {
-		font-size: 0.875rem;
+		font-size: var(--font-size-sm);
 		color: var(--color-error);
 	}
 
 	.android-browser-message {
-		font-size: 0.875rem;
+		font-size: var(--font-size-sm);
 		color: var(--color-text-muted);
 		font-style: italic;
 	}

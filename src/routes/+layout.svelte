@@ -2,13 +2,19 @@
 	import '../app.css';
 	import * as m from '$lib/paraglide/messages.js';
 	import DevPanel from '$lib/ui/DevPanel.svelte';
+	import ThemeToggle from '$lib/ui/ThemeToggle.svelte';
+	import ObsidianButton from '$lib/ui/ObsidianButton.svelte';
+	import DisclaimerFooter from '$lib/ui/DisclaimerFooter.svelte';
 	import { isDevPanelOpen, setDevPanelOpen } from '$lib/devsettings.js';
+	import { initTheme } from '$lib/theme.js';
 	import { Capacitor } from '@capacitor/core';
 	import { Browser } from '@capacitor/browser';
 
 	let { children } = $props();
 
 	let showDevPanel = $state(isDevPanelOpen());
+
+	initTheme();
 
 	function toggleDevPanel() {
 		showDevPanel = !showDevPanel;
@@ -70,12 +76,18 @@
 <header class="app-header" onclick={handleHeaderTap}>
 	<div class="container header-inner">
 		<a href="/" class="logo">{m.app_title()}</a>
+		<div class="header-actions">
+			<ObsidianButton />
+			<ThemeToggle />
+		</div>
 	</div>
 </header>
 
 <main class="container">
 	{@render children()}
 </main>
+
+<DisclaimerFooter />
 
 {#if showDevPanel}
 	<DevPanel onclose={toggleDevPanel} />
@@ -84,21 +96,32 @@
 <style>
 	.app-header {
 		border-bottom: 1px solid var(--color-border);
-		padding: 0.75rem 0;
-		margin-bottom: 1.5rem;
+		padding: var(--spacing-sm) 0;
+		margin-bottom: var(--spacing-lg);
 		-webkit-tap-highlight-color: transparent;
 		user-select: none;
+		background: var(--color-surface);
+		transition: background var(--transition-normal), border-color var(--transition-normal);
 	}
 
 	.header-inner {
 		display: flex;
 		align-items: center;
+		justify-content: space-between;
+	}
+
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
 	}
 
 	.logo {
-		font-size: 1.125rem;
+		font-family: var(--font-display);
+		font-size: var(--font-size-md);
 		font-weight: 700;
-		color: var(--color-text);
+		color: var(--color-accent);
+		letter-spacing: 0.01em;
 	}
 
 	.logo:hover {
@@ -106,6 +129,7 @@
 	}
 
 	main {
-		padding-bottom: 2rem;
+		flex: 1;
+		padding-bottom: var(--spacing-xl);
 	}
 </style>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Earthborne Rangers Mods">
+  <rect width="64" height="64" rx="10" fill="#f5ecd6"/>
+  <g fill="#3a5e3f" stroke="#1f2e25" stroke-width="1.5" stroke-linejoin="round">
+    <!-- North petal -->
+    <polygon points="32,4 41,20 32,26 23,20"/>
+    <!-- East petal -->
+    <polygon points="60,32 44,41 38,32 44,23"/>
+    <!-- South petal -->
+    <polygon points="32,60 23,44 32,38 41,44"/>
+    <!-- West petal -->
+    <polygon points="4,32 20,23 26,32 20,41"/>
+    <!-- Center diamond -->
+    <polygon points="32,28 36,32 32,36 28,32"/>
+  </g>
+</svg>

@@ -17,29 +17,28 @@
 	// Container CSS, applied inside the shadow root before the fetched
 	// snippets so the snippet's rules win on order.
 	//
-	// :host turns the wrapper into a block-level box. img / pre rules
-	// keep oversized embedded images and long code lines from blowing
-	// out the layout.
-	//
-	// The Obsidian snippet declares the EBR palette as CSS variables on
-	// .theme-light / .theme-dark, but it relies on Obsidian's own app
-	// painting `body` with those variables. There is no `body` inside
-	// this shadow root, so we paint the theme wrapper here. Doing it on
-	// our side (rather than in the snippet) keeps the snippet a pure
-	// palette declaration and leaves room to use a different background
-	// color in the manager later if we want.
+	// :host turns the wrapper into a block-level box. The img and pre
+	// rules are layout protection only -- they keep oversized embedded
+	// images and long code lines from blowing out the page width. We
+	// don't impose any visual styling (border-radius, fonts, colors)
+	// on the author's content; the markdown should render as authored.
+	// The content inherits the host page's text color so it remains
+	// readable in both light and dark themes. Obsidian-specific
+	// background overrides are scoped to .markdown-reading-view so they
+	// only fire in Obsidian (where that class is on the ancestor), not
+	// here.
 	const containerCss = `
 		:host {
 			display: block;
-			margin-bottom: 1.5rem;
+			margin-bottom: var(--spacing-lg, 1.5rem);
 		}
-		.theme-light,
-		.theme-dark {
-			background-color: var(--background-primary);
-			color: var(--text-normal);
+		.description-content {
+			color: var(--color-text, inherit);
+			background-color: transparent;
+			line-height: 1.6;
 		}
-		.markdown-reading-view img { max-width: 100%; height: auto; }
-		.markdown-reading-view pre { overflow-x: auto; }
+		.description-content img { max-width: 100%; height: auto; }
+		.description-content pre { overflow-x: auto; }
 	`;
 
 	onMount(async () => {
@@ -57,11 +56,6 @@
 		// Reading these declares them as effect dependencies.
 		const currentHtml = html;
 		const currentBaseCss = baseCss;
-		const themeClass =
-			typeof window !== 'undefined' &&
-			window.matchMedia?.('(prefers-color-scheme: dark)').matches
-				? 'theme-dark'
-				: 'theme-light';
 
 		const containerStyle = document.createElement('style');
 		containerStyle.textContent = containerCss;
@@ -69,30 +63,19 @@
 		const baseStyle = document.createElement('style');
 		baseStyle.textContent = currentBaseCss;
 
-		// Mirror Obsidian's DOM structure so the snippet selectors line
-		// up without any in-component overrides:
-		//   <div class="theme-light"> or "theme-dark"  -- declares vars,
-		//                                                 paints bg/text
-		//     <div class="markdown-reading-view markdown-rendered">
-		//       ...rendered markdown HTML...
-		//
-		// In Obsidian the theme class lives on <body>; we put it on the
-		// outer wrapper here. The .markdown-rendered class is added in
-		// addition to .markdown-reading-view so any snippet rules that
-		// scope to either selector still match.
-		const themeWrapper = document.createElement('div');
-		themeWrapper.className = themeClass;
-
+		// Render description content without the Obsidian theme wrapper.
+		// The .markdown-reading-view class is omitted intentionally so
+		// Obsidian-scoped CSS rules (background colors, view-specific
+		// layout) don't fire. The content adopts the host page's
+		// typography and surface colors instead.
 		const content = document.createElement('div');
-		content.className = 'markdown-reading-view markdown-rendered';
+		content.className = 'description-content markdown-rendered';
 		// The HTML here comes from our own markdown renderer running on
 		// content fetched at the registry-pinned commit hash -- the same
 		// trust boundary the rest of the app already accepts.
 		content.innerHTML = currentHtml;
 
-		themeWrapper.appendChild(content);
-
-		shadow.replaceChildren(containerStyle, baseStyle, themeWrapper);
+		shadow.replaceChildren(containerStyle, baseStyle, content);
 	});
 </script>
 

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Capacitor } from '@capacitor/core';
 	import * as m from '$lib/paraglide/messages.js';
 	import { fetchRegistry, type BrowseMod, type ModType } from '$lib/registry.js';
 	import {
@@ -84,8 +83,6 @@
 				{/if}
 				<button class="header-button" onclick={handleChangeFolder}>{m.change_vault_folder()}</button>
 			{/if}
-			<!-- Android doesn't support obsidian://choose-vault; use bare obsidian:// to just open the app -->
-			<a class="header-button" href={Capacitor.isNativePlatform() ? 'obsidian://' : 'obsidian://choose-vault'}>{m.open_obsidian()}</a>
 		</div>
 	</div>
 
@@ -102,6 +99,7 @@
 				<button
 					class="filter-chip"
 					class:active={activeTypeFilter === filter.value}
+					aria-pressed={activeTypeFilter === filter.value}
 					onclick={() => (activeTypeFilter = filter.value)}
 				>
 					{filter.label()}
@@ -121,9 +119,10 @@
 			{#each filteredMods as mod (mod.id)}
 				<li class="mod-card">
 					<a href="/mods/{mod.id}" class="mod-card-link">
-						<div class="mod-icon">{mod.icon ?? ''}</div>
 						<div class="mod-info">
-							<h2 class="mod-name">{mod.name}</h2>
+							<h2 class="mod-name">
+								{#if mod.icon}<span class="mod-icon" aria-hidden="true">{mod.icon}</span>{/if}{mod.name}
+							</h2>
 							<p class="mod-author">{mod.author ? m.mod_detail_author({ author: mod.author }) : m.mod_detail_unknown_author()}</p>
 							<p class="mod-description">{mod.description}</p>
 							<div class="mod-meta">
@@ -145,23 +144,25 @@
 <style>
 	.browse h1 {
 		margin-bottom: 0;
+		font-family: var(--font-display);
+		color: var(--color-accent);
 	}
 
 	.page-header {
-		margin-bottom: 1rem;
+		margin-bottom: var(--spacing-md);
 	}
 
 	.header-actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem;
+		gap: var(--spacing-sm);
 		align-items: center;
-		margin-top: 0.5rem;
+		margin-top: var(--spacing-sm);
 	}
 
 	.vault-folder-name {
-		font-size: 0.8125rem;
-		color: var(--color-text-muted, #888);
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -169,8 +170,8 @@
 	}
 
 	.header-button {
-		font-size: 0.875rem;
-		padding: 0.375rem 0.75rem;
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-xs) var(--spacing-sm);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);
 		background: var(--color-surface);
@@ -178,42 +179,53 @@
 		text-decoration: none;
 		white-space: nowrap;
 		cursor: pointer;
+		min-height: 2.5rem;
+		transition: background var(--transition-fast), border-color var(--transition-fast);
 	}
 
 	.header-button:hover {
-		background: var(--color-surface-hover, var(--color-surface));
+		background: var(--color-surface-hover);
+		border-color: var(--color-primary);
 	}
 
 	.controls {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
-		margin-bottom: 1.5rem;
+		gap: var(--spacing-sm);
+		margin-bottom: var(--spacing-lg);
 	}
 
 	.search-input {
 		font: inherit;
-		padding: 0.5rem 0.75rem;
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-sm) var(--spacing-sm);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);
 		background: var(--color-surface);
 		color: var(--color-text);
 		width: 100%;
+		min-height: 44px;
+		transition: border-color var(--transition-fast);
+	}
+
+	.search-input:focus-visible {
+		border-color: var(--color-primary);
 	}
 
 	.type-filters {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.375rem;
+		gap: var(--spacing-xs);
 	}
 
 	.filter-chip {
-		font-size: 0.8125rem;
-		padding: 0.3125rem 0.75rem;
+		font-size: var(--font-size-xs);
+		padding: var(--spacing-xs) var(--spacing-sm);
 		min-height: auto;
 		background: var(--color-surface);
 		color: var(--color-text-muted);
 		border: 1px solid var(--color-border);
+		transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 	}
 
 	.filter-chip:hover {
@@ -224,14 +236,14 @@
 
 	.filter-chip.active {
 		background: var(--color-primary);
-		color: #fff;
+		color: var(--color-primary-text);
 		border-color: var(--color-primary);
 	}
 
 	.status-message {
 		text-align: center;
 		color: var(--color-text-muted);
-		padding: 2rem 0;
+		padding: var(--spacing-xl) 0;
 	}
 
 	.status-message.error {
@@ -242,26 +254,27 @@
 		list-style: none;
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: var(--spacing-sm);
 	}
 
 	.mod-card {
 		background: var(--color-surface);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);
-		transition: border-color 0.15s;
+		transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 	}
 
 	@media (hover: hover) {
 		.mod-card:hover {
 			border-color: var(--color-primary);
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 		}
 	}
 
 	.mod-card-link {
 		display: flex;
-		gap: 1rem;
-		padding: 1rem;
+		gap: var(--spacing-md);
+		padding: var(--spacing-md);
 		color: inherit;
 		text-decoration: none;
 	}
@@ -271,11 +284,9 @@
 	}
 
 	.mod-icon {
-		font-size: 2rem;
+		font-size: 1.1em;
 		line-height: 1;
-		flex-shrink: 0;
-		width: 2.5rem;
-		text-align: center;
+		margin-right: var(--spacing-xs);
 	}
 
 	.mod-info {
@@ -284,44 +295,46 @@
 	}
 
 	.mod-name {
-		font-size: 1.0625rem;
+		font-family: var(--font-display);
+		font-size: var(--font-size-base);
 		font-weight: 600;
-		margin-bottom: 0.125rem;
+		margin-bottom: var(--spacing-xs);
 	}
 
 	.mod-author {
-		font-size: 0.875rem;
+		font-size: var(--font-size-sm);
 		color: var(--color-text-muted);
-		margin-bottom: 0.375rem;
+		margin-bottom: var(--spacing-xs);
 	}
 
 	.mod-description {
-		font-size: 0.875rem;
-		margin-bottom: 0.5rem;
+		font-size: var(--font-size-sm);
+		margin-bottom: var(--spacing-sm);
+		line-height: var(--line-height-normal);
 	}
 
 	.mod-meta {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem;
+		gap: var(--spacing-sm);
 		align-items: center;
 	}
 
 	.mod-type-badge {
-		font-size: 0.75rem;
-		padding: 0.125rem 0.5rem;
-		border-radius: 999px;
+		font-size: var(--font-size-xs);
+		padding: 2px var(--spacing-sm);
+		border-radius: var(--radius-full);
 		background: var(--color-border);
 		color: var(--color-text-muted);
 		text-transform: capitalize;
 	}
 
 	.mod-safety {
-		font-size: 0.75rem;
+		font-size: var(--font-size-xs);
 	}
 
 	.mod-safety.safe {
-		color: #2a9d2a;
+		color: var(--color-success);
 	}
 
 	.mod-safety.unsafe {
