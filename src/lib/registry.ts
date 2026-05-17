@@ -139,16 +139,6 @@ export function modFileUrl(
 	return `https://raw.githubusercontent.com/${owner}/${repo}/${mod.commitHash}/${encodedPath}`;
 }
 
-/** Build a cover image URL for a mod, or null if no cover image. */
-export function coverImageUrl(mod: {
-	repoUrl: string;
-	commitHash: string;
-	coverImage?: string;
-}): string | null {
-	if (!mod.coverImage) return null;
-	return modFileUrl(mod, mod.coverImage);
-}
-
 /** Rewrite relative image paths in markdown to absolute raw GitHub URLs. */
 export function rewriteImagePaths(
 	markdown: string,
@@ -219,7 +209,6 @@ function parseBrowseMod(data: unknown, index: number): BrowseMod {
 		campaigns: Array.isArray(mod.campaigns) ? (mod.campaigns as string[]) : [],
 		requiredProducts: Array.isArray(mod.requiredProducts) ? (mod.requiredProducts as string[]) : [],
 		safeToAddMidCampaign: typeof mod.safeToAddMidCampaign === 'boolean' ? mod.safeToAddMidCampaign : false,
-		coverImage: typeof mod.coverImage === 'string' ? mod.coverImage : undefined,
 		icon: typeof mod.icon === 'string' ? mod.icon : undefined,
 		language: typeof mod.language === 'string' ? mod.language : 'en',
 		latestVersion: typeof mod.latestVersion === 'string' ? mod.latestVersion : '',

@@ -3,7 +3,6 @@ import {
 	parseRegistry,
 	parseRepoUrl,
 	modFileUrl,
-	coverImageUrl,
 	rewriteImagePaths,
 	getRegistryCampaignName,
 	fetchDescription,
@@ -74,7 +73,6 @@ describe('parseRegistry', () => {
 		const mod = validMod();
 		delete (mod as Record<string, unknown>).tags;
 		delete (mod as Record<string, unknown>).icon;
-		delete (mod as Record<string, unknown>).coverImage;
 		delete (mod as Record<string, unknown>).author;
 		delete (mod as Record<string, unknown>).description;
 		delete (mod as Record<string, unknown>).language;
@@ -96,7 +94,6 @@ describe('parseRegistry', () => {
 		expect(parsed.requiredProducts).toEqual([]);
 		expect(parsed.safeToAddMidCampaign).toBe(false);
 		expect(parsed.icon).toBeUndefined();
-		expect(parsed.coverImage).toBeUndefined();
 	});
 
 	it('rejects null', () => {
@@ -344,38 +341,6 @@ describe('fetchDescription', () => {
 			new Response('', { status: 500, statusText: 'Server Error' }),
 		);
 		await expect(fetchDescription(mod)).rejects.toBeInstanceOf(DescriptionFetchError);
-	});
-});
-
-// --- coverImageUrl ---
-
-describe('coverImageUrl', () => {
-	it('returns the cover image URL when present', () => {
-		const mod = {
-			repoUrl: 'https://github.com/creator/ebr-mod-base-content',
-			commitHash: 'abc123',
-			coverImage: 'Pictures/cover.png',
-		};
-		expect(coverImageUrl(mod)).toBe(
-			'https://raw.githubusercontent.com/creator/ebr-mod-base-content/abc123/Pictures/cover.png',
-		);
-	});
-
-	it('returns null when coverImage is undefined', () => {
-		const mod = {
-			repoUrl: 'https://github.com/creator/ebr-mod-base-content',
-			commitHash: 'abc123',
-		};
-		expect(coverImageUrl(mod)).toBeNull();
-	});
-
-	it('returns null when coverImage is empty string', () => {
-		const mod = {
-			repoUrl: 'https://github.com/creator/ebr-mod-base-content',
-			commitHash: 'abc123',
-			coverImage: '',
-		};
-		expect(coverImageUrl(mod)).toBeNull();
 	});
 });
 

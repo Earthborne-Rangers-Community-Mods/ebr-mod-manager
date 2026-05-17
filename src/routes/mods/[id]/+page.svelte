@@ -4,7 +4,6 @@
 	import {
 		fetchModDetail,
 		fetchDescription,
-		coverImageUrl,
 		rewriteImagePaths,
 		type ModDetail,
 	} from '$lib/registry.js';
@@ -69,14 +68,6 @@
 		<p class="status-message error">{error}</p>
 	{:else if mod}
 		<div class="detail-header">
-			{#if coverImageUrl(mod)}
-				<img
-					class="cover-image"
-					src={coverImageUrl(mod)}
-					alt="{mod.name} cover image"
-					loading="lazy"
-				/>
-			{/if}
 			<div class="header-content">
 				<div class="title-row">
 					<h1 class="mod-name">
@@ -234,14 +225,6 @@
 	/* --- Header --- */
 
 	.detail-header {
-		margin-bottom: var(--spacing-md);
-	}
-
-	.cover-image {
-		width: 100%;
-		max-height: 300px;
-		object-fit: cover;
-		border-radius: var(--radius);
 		margin-bottom: var(--spacing-md);
 	}
 

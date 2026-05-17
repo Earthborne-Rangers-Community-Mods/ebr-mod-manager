@@ -19,7 +19,6 @@ export interface BrowseMod {
 	campaigns: string[];
 	requiredProducts: string[];
 	safeToAddMidCampaign: boolean;
-	coverImage?: string;
 	icon?: string;
 	language: string;
 	latestVersion: string;
