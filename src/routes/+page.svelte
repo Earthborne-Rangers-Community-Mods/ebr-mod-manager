@@ -139,6 +139,8 @@
 			{/each}
 		</ul>
 	{/if}
+
+	<p class="make-your-own"><a href="/docs/modding-guide">{m.make_your_own()}</a></p>
 </section>
 
 <style>
@@ -339,5 +341,22 @@
 
 	.mod-safety.unsafe {
 		color: var(--color-error);
+	}
+
+	.make-your-own {
+		text-align: center;
+		margin-top: var(--spacing-lg);
+		font-size: var(--font-size-sm);
+		color: var(--color-text-muted);
+	}
+
+	.make-your-own a {
+		color: var(--color-text-muted);
+		text-decoration: underline;
+		transition: color var(--transition-fast);
+	}
+
+	.make-your-own a:hover {
+		color: var(--color-primary);
 	}
 </style>

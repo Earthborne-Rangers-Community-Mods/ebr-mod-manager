@@ -12,6 +12,7 @@
 	import { getToken } from '$lib/devsettings.js';
 	import InstallButton from '$lib/ui/InstallButton.svelte';
 	import ModDescription from '$lib/ui/ModDescription.svelte';
+	import BackLink from '$lib/ui/BackLink.svelte';
 
 	let mod = $state<ModDetail | null>(null);
 	let loading = $state(true);
@@ -60,7 +61,7 @@
 </script>
 
 <section class="mod-detail">
-	<a href="/" class="back-link">&larr; {m.back_to_browse()}</a>
+	<BackLink />
 
 	{#if loading}
 		<p class="status-message">{m.mod_detail_loading()}</p>
@@ -200,17 +201,7 @@
 		max-width: 720px;
 	}
 
-	.back-link {
-		display: inline-block;
-		font-size: var(--font-size-sm);
-		color: var(--color-primary);
-		margin-bottom: var(--spacing-lg);
-		transition: color var(--transition-fast);
-	}
 
-	.back-link:hover {
-		text-decoration: underline;
-	}
 
 	.status-message {
 		text-align: center;

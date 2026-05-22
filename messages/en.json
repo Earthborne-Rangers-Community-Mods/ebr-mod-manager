@@ -39,7 +39,7 @@
   "dev_panel_explanation": "This is a developer tool for testing the mod manager. If you opened this by accident, press Ctrl+` or click X to close it. Regular users do not need this panel.",
   "back_to_browse": "Back to Browse",
   "mod_detail_version": "Version {version}",
-  "mod_detail_campaigns": "Campaigns",
+  "mod_detail_campaigns": "Supported Campaigns",
   "mod_detail_required_products": "Required Products",
   "mod_detail_optional_products": "Enhanced By",
   "mod_detail_mid_campaign_notes": "Mid-Campaign Notes",
@@ -73,5 +73,8 @@
   "product_moments_on_the_path": "Moments on the Path",
   "product_ranger_card_doubler": "Ranger Card Doubler",
   "product_incandescent_sky": "Incandescent Sky",
+  "make_your_own": "Make your own mod",
+  "modding_guide_title": "Modding Guide",
+  "modding_guide_coming_soon": "Coming soon.",
   "disclaimer": "Earthborne Rangers is copyrighted by Earthborne Games. This website, the mod manager tool, and all associated services are community-created projects. They are not produced by, endorsed by, supported by, or officially affiliated with Earthborne Games."
 }
