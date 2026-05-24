@@ -182,16 +182,16 @@
 		right: 0;
 		background: var(--color-surface);
 		border-top: 2px solid var(--color-primary);
-		padding: 0.75rem 1rem;
+		padding: var(--spacing-sm) var(--spacing-md);
 		z-index: 1000;
-		font-size: 0.8125rem;
+		font-size: var(--font-size-sm);
 	}
 
 	.dev-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 0.5rem;
+		margin-bottom: var(--spacing-sm);
 	}
 
 	.dev-title {
@@ -206,8 +206,8 @@
 		border: none;
 		color: var(--color-text-muted);
 		cursor: pointer;
-		font-size: 0.875rem;
-		padding: 0.125rem 0.375rem;
+		font-size: var(--font-size-sm);
+		padding: 2px var(--spacing-xs);
 		min-height: auto;
 	}
 
@@ -217,15 +217,15 @@
 
 	.dev-explanation {
 		color: var(--color-text-muted);
-		font-size: 0.75rem;
+		font-size: var(--font-size-xs);
 		line-height: 1.4;
-		margin-bottom: 0.5rem;
+		margin-bottom: var(--spacing-sm);
 	}
 
 	.dev-label {
 		display: block;
 		color: var(--color-text-muted);
-		font-size: 0.75rem;
+		font-size: var(--font-size-xs);
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
@@ -236,7 +236,7 @@
 		text-transform: none;
 		letter-spacing: normal;
 		line-height: 1.4;
-		margin: 0.25rem 0;
+		margin: var(--spacing-xs) 0;
 	}
 
 	.dev-hint a {
@@ -248,30 +248,30 @@
 		text-transform: none;
 		letter-spacing: normal;
 		line-height: 1.4;
-		margin: 0.25rem 0 0.25rem 1.25rem;
+		margin: var(--spacing-xs) 0 var(--spacing-xs) 1.25rem;
 		padding: 0;
 	}
 
 	.dev-steps li {
-		margin-bottom: 0.25rem;
+		margin-bottom: var(--spacing-xs);
 	}
 
 	.dev-steps ul {
 		font-weight: 400;
 		text-transform: none;
 		letter-spacing: normal;
-		margin: 0.125rem 0 0.25rem 1rem;
+		margin: 2px 0 var(--spacing-xs) var(--spacing-md);
 		padding: 0;
 		list-style: disc;
 	}
 
 	.dev-steps ul li {
-		margin-bottom: 0.125rem;
+		margin-bottom: 2px;
 	}
 
 	.dev-pat-help {
-		margin-bottom: 0.75rem;
-		font-size: 0.75rem;
+		margin-bottom: var(--spacing-sm);
+		font-size: var(--font-size-xs);
 		color: var(--color-text-muted);
 	}
 
@@ -279,7 +279,7 @@
 		cursor: pointer;
 		color: var(--color-primary);
 		font-weight: 600;
-		padding: 0.25rem 0;
+		padding: var(--spacing-xs) 0;
 	}
 
 	.dev-pat-help summary:hover {
@@ -293,30 +293,30 @@
 	.dev-steps code,
 	.dev-hint code {
 		font-family: var(--font-mono, monospace);
-		font-size: 0.6875rem;
+		font-size: 0.85em;
 		background: var(--color-bg);
 		border: 1px solid var(--color-border);
 		border-radius: 3px;
-		padding: 0 0.25rem;
+		padding: 0 var(--spacing-xs);
 	}
 
 	.dev-body > .dev-label + .dev-label {
-		margin-top: 0.75rem;
-		padding-top: 0.75rem;
+		margin-top: var(--spacing-sm);
+		padding-top: var(--spacing-sm);
 		border-top: 1px solid var(--color-border);
 	}
 
 	.token-row {
 		display: flex;
-		gap: 0.375rem;
-		margin-top: 0.25rem;
+		gap: var(--spacing-xs);
+		margin-top: var(--spacing-xs);
 		align-items: center;
 	}
 
 	.dev-input {
 		font: inherit;
-		font-size: 0.8125rem;
-		padding: 0.3125rem 0.5rem;
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-xs) var(--spacing-sm);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);
 		background: var(--color-bg);
@@ -326,11 +326,11 @@
 	}
 
 	.dev-btn {
-		font-size: 0.75rem;
-		padding: 0.3125rem 0.625rem;
+		font-size: var(--font-size-xs);
+		padding: var(--spacing-xs) var(--spacing-sm);
 		min-height: auto;
 		background: var(--color-primary);
-		color: #fff;
+		color: var(--color-primary-text);
 		border: none;
 		border-radius: var(--radius);
 		cursor: pointer;
@@ -346,19 +346,19 @@
 	}
 
 	.dev-saved {
-		color: #2a9d2a;
-		margin-left: 0.5rem;
-		font-size: 0.75rem;
+		color: var(--color-success);
+		margin-left: var(--spacing-sm);
+		font-size: var(--font-size-xs);
 	}
 
 	.dev-status {
 		display: inline-block;
-		margin-top: 0.25rem;
-		font-size: 0.6875rem;
+		margin-top: var(--spacing-xs);
+		font-size: var(--font-size-xs);
 	}
 
 	.dev-status.set {
-		color: #2a9d2a;
+		color: var(--color-success);
 	}
 
 	.dev-status.unset {

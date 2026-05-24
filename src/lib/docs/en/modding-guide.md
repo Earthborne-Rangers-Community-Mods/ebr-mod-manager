@@ -7,7 +7,7 @@ This guide covers building or customizing your campaign guide and packaging your
 - **[Obsidian](https://obsidian.md)** (free) - to write and view your mod.
 - **[NodeJS](https://nodejs.org/en/download)** (free) - to run the mod tools. (scroll down to the button that gives you the installer).
 - **[Git](https://git-scm.com)** (free) - to track your changes.
-- **A [GitHub](https://github.com) account** (free) - where your mod lives online.
+- **[GitHub](https://github.com) account** (free) - where your mod lives online.
 
 ## Step 1: Install the tools
 
@@ -134,3 +134,5 @@ This creates a listing in the mod registry and opens a "pull request" in GitHub 
 | `ebr include` | Pull in a campaign's full content for modifying |
 | `ebr update` | Check for updates to included content |
 | `ebr scaffold` | Add blank template files to your mod for an official map or cards |
+
+Run any command with `--help` to see its full usage and options (e.g. `ebr new --help`).

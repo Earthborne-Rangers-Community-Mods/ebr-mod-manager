@@ -82,7 +82,7 @@
 				{#if vaultFolderName}
 					<span class="vault-folder-name">{vaultFolderName}</span>
 				{/if}
-				<button class="header-button" onclick={handleChangeFolder}>{m.change_vault_folder()}</button>
+				<button class="btn-secondary header-button" onclick={handleChangeFolder}>{m.change_vault_folder()}</button>
 			{/if}
 		</div>
 	</div>
@@ -98,7 +98,7 @@
 		<div class="type-filters" role="group" aria-label="Filter by mod type">
 			{#each TYPE_FILTERS as filter}
 				<button
-					class="filter-chip"
+					class="btn-chip"
 					class:active={activeTypeFilter === filter.value}
 					aria-pressed={activeTypeFilter === filter.value}
 					onclick={() => (activeTypeFilter = filter.value)}
@@ -127,7 +127,7 @@
 							<p class="mod-author">{mod.author ? m.mod_detail_author({ author: mod.author }) : m.mod_detail_unknown_author()}</p>
 							<p class="mod-description">{mod.description}</p>
 							<div class="mod-meta">
-								<span class="mod-type-badge">{mod.type}</span>
+								<span class="badge">{mod.type}</span>
 								{#if mod.safeToAddMidCampaign}
 									<span class="mod-safety safe">{m.mod_detail_safe_mid_campaign()}</span>
 								{:else}
@@ -173,22 +173,8 @@
 	}
 
 	.header-button {
-		font-size: var(--font-size-sm);
-		padding: var(--spacing-xs) var(--spacing-sm);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius);
-		background: var(--color-surface);
-		color: var(--color-text);
-		text-decoration: none;
 		white-space: nowrap;
-		cursor: pointer;
 		min-height: 2.5rem;
-		transition: background var(--transition-fast), border-color var(--transition-fast);
-	}
-
-	.header-button:hover {
-		background: var(--color-surface-hover);
-		border-color: var(--color-primary);
 	}
 
 	.controls {
@@ -221,38 +207,6 @@
 		gap: var(--spacing-xs);
 	}
 
-	.filter-chip {
-		font-size: var(--font-size-xs);
-		padding: var(--spacing-xs) var(--spacing-sm);
-		min-height: auto;
-		background: var(--color-surface);
-		color: var(--color-text-muted);
-		border: 1px solid var(--color-border);
-		transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-	}
-
-	.filter-chip:hover {
-		border-color: var(--color-primary);
-		color: var(--color-primary);
-		background: var(--color-surface);
-	}
-
-	.filter-chip.active {
-		background: var(--color-primary);
-		color: var(--color-primary-text);
-		border-color: var(--color-primary);
-	}
-
-	.status-message {
-		text-align: center;
-		color: var(--color-text-muted);
-		padding: var(--spacing-xl) 0;
-	}
-
-	.status-message.error {
-		color: var(--color-error);
-	}
-
 	.mod-list {
 		list-style: none;
 		display: flex;
@@ -270,7 +224,7 @@
 	@media (hover: hover) {
 		.mod-card:hover {
 			border-color: var(--color-primary);
-			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+			box-shadow: var(--shadow-sm);
 		}
 	}
 
@@ -321,15 +275,6 @@
 		flex-wrap: wrap;
 		gap: var(--spacing-sm);
 		align-items: center;
-	}
-
-	.mod-type-badge {
-		font-size: var(--font-size-xs);
-		padding: 2px var(--spacing-sm);
-		border-radius: var(--radius-full);
-		background: var(--color-border);
-		color: var(--color-text-muted);
-		text-transform: capitalize;
 	}
 
 	.mod-safety {

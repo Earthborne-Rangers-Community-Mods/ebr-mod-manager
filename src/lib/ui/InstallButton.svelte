@@ -21,19 +21,18 @@
 
 	let { mod }: Props = $props();
 
-	let downloading = $state(false);
-	let downloadProgress = $state<DownloadProgress | null>(null);
-	let downloadError = $state<string | null>(null);
-	let downloadComplete = $state(false);
-	let writeProgress = $state<string | null>(null);
+	type InstallState =
+		| { step: 'idle' }
+		| { step: 'downloading'; progress: DownloadProgress | null }
+		| { step: 'writing'; message: string }
+		| { step: 'complete' }
+		| { step: 'error'; message: string };
+
+	let state = $state<InstallState>({ step: 'idle' });
 
 	async function handleDownload() {
-		if (downloading) return;
-		downloading = true;
-		downloadProgress = null;
-		downloadError = null;
-		downloadComplete = false;
-		writeProgress = null;
+		if (state.step === 'downloading' || state.step === 'writing') return;
+		state = { step: 'downloading', progress: null };
 
 		try {
 			const token = getToken() ?? undefined;
@@ -44,35 +43,38 @@
 				const status = await checkVault(target);
 
 				if (status === 'unrecognized') {
-					downloadError = m.error_vault_safety();
+					state = { step: 'error', message: m.error_vault_safety() };
 					return;
 				}
 
 				if (status === 'existing-vault') {
 					const ok = confirm(m.confirm_replace_vault({ modName: mod.name }));
-					if (!ok) return;
+					if (!ok) {
+						state = { step: 'idle' };
+						return;
+					}
 				}
 
 				const zipBuffer = await downloadModZip(mod, {
 					token,
 					onProgress: (p) => {
-						downloadProgress = p;
+						state = { step: 'downloading', progress: p };
 					},
 				});
 
-				writeProgress = m.extracting_mod();
+				state = { step: 'writing', message: m.extracting_mod() };
 				const files = await extractModZipAsync(zipBuffer);
 
-				writeProgress = m.clearing_vault();
+				state = { step: 'writing', message: m.clearing_vault() };
 				await clearVault(target, {
 					onProgress: (deleted, total) => {
-						writeProgress = m.clearing_vault_progress({ deleted, total });
+						state = { step: 'writing', message: m.clearing_vault_progress({ deleted, total }) };
 					},
 				});
-				writeProgress = m.writing_vault_progress({ written: 0, total: files.length });
+				state = { step: 'writing', message: m.writing_vault_progress({ written: 0, total: files.length }) };
 				await writeVaultFiles(target, files, {
 					onProgress: (written, total) => {
-						writeProgress = m.writing_vault_progress({ written, total });
+						state = { step: 'writing', message: m.writing_vault_progress({ written, total }) };
 					},
 				});
 
@@ -83,12 +85,12 @@
 					commitHash: mod.commitHash,
 				});
 
-				downloadComplete = true;
+				state = { step: 'complete' };
 			} else {
 				const zipBuffer = await downloadModZip(mod, {
 					token,
 					onProgress: (p) => {
-						downloadProgress = p;
+						state = { step: 'downloading', progress: p };
 					},
 				});
 
@@ -100,33 +102,29 @@
 				a.download = `${mod.id}.zip`;
 				a.click();
 				URL.revokeObjectURL(url);
-				downloadComplete = true;
+				state = { step: 'complete' };
 			}
 		} catch (err) {
 			console.error('Mod install failed:', err);
 			if (err instanceof PathTraversalError) {
-				downloadError = m.error_extraction_security();
+				state = { step: 'error', message: m.error_extraction_security() };
 			} else if (err instanceof VaultDirectoryMissingError) {
-				downloadError = m.error_vault_removed();
+				state = { step: 'error', message: m.error_vault_removed() };
 			} else if (err instanceof DOMException && err.name === 'AbortError') {
-				downloadError = null;
+				state = { step: 'idle' };
 			} else if (err instanceof ModDownloadError) {
 				if (err.httpStatus >= 500) {
-					downloadError = m.error_download_server();
+					state = { step: 'error', message: m.error_download_server() };
 				} else if (err.httpStatus === 404 || err.httpStatus === 403) {
-					downloadError = m.error_download_not_found();
+					state = { step: 'error', message: m.error_download_not_found() };
 				} else {
-					downloadError = m.error_download_failed();
+					state = { step: 'error', message: m.error_download_failed() };
 				}
-			} else if (err instanceof TypeError && (err as TypeError).message.includes('fetch')) {
-				downloadError = m.error_download_network();
+			} else if (err instanceof TypeError && err.message.includes('fetch')) {
+				state = { step: 'error', message: m.error_download_network() };
 			} else {
-				downloadError = m.error_download_failed();
+				state = { step: 'error', message: m.error_download_failed() };
 			}
-		} finally {
-			downloading = false;
-			downloadProgress = null;
-			writeProgress = null;
 		}
 	}
 </script>
@@ -134,30 +132,30 @@
 <div class="install-section">
 	{#if isAndroidBrowser()}
 		<span class="android-browser-message">{m.android_browser_install_blocked()}</span>
-	{:else if downloading}
+	{:else if state.step === 'downloading'}
 		<button class="install-button" disabled>
-			{#if writeProgress}
-				{writeProgress}
-			{:else}
-				{m.downloading()}
-				{#if downloadProgress}
-					{#if downloadProgress.totalBytes}
-						({Math.round((downloadProgress.receivedBytes / downloadProgress.totalBytes) * 100)}%)
-					{:else}
-						({(downloadProgress.receivedBytes / 1024).toFixed(0)} KB)
-					{/if}
+			{m.downloading()}
+			{#if state.progress}
+				{#if state.progress.totalBytes}
+					({Math.round((state.progress.receivedBytes / state.progress.totalBytes) * 100)}%)
+				{:else}
+					({(state.progress.receivedBytes / 1024).toFixed(0)} KB)
 				{/if}
 			{/if}
 		</button>
-	{:else if downloadComplete}
+	{:else if state.step === 'writing'}
+		<button class="install-button" disabled>
+			{state.message}
+		</button>
+	{:else if state.step === 'complete'}
 		<span class="download-success">{m.vault_write_complete()}</span>
 	{:else}
 		<button class="install-button" onclick={handleDownload}>
 			{m.install_button()}
 		</button>
 	{/if}
-	{#if downloadError}
-		<span class="download-error">{downloadError}</span>
+	{#if state.step === 'error'}
+		<span class="download-error">{state.message}</span>
 	{/if}
 </div>
 
