@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages.js';
 	import { fetchRegistry, type BrowseMod, type ModType } from '$lib/registry.js';
 	import {
@@ -118,7 +119,7 @@
 		<ul class="mod-list">
 			{#each filteredMods as mod (mod.id)}
 				<li class="mod-card">
-					<a href="/mods/{mod.id}" class="mod-card-link">
+					<a href="{resolve('/mods/' + mod.id)}" class="mod-card-link">
 						<div class="mod-info">
 							<h2 class="mod-name">
 								{#if mod.icon}<span class="mod-icon" aria-hidden="true">{mod.icon}</span>{/if}{mod.name}
@@ -140,7 +141,7 @@
 		</ul>
 	{/if}
 
-	<p class="make-your-own"><a href="/docs/modding-guide">{m.make_your_own()}</a></p>
+	<p class="make-your-own"><a href="{resolve('/docs/modding-guide')}">{m.make_your_own()}</a></p>
 </section>
 
 <style>

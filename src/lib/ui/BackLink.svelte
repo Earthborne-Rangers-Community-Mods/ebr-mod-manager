@@ -1,8 +1,9 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages.js';
 </script>
 
-<a href="/" class="back-link">&larr; {m.back_to_browse()}</a>
+<a href="{resolve('/')}" class="back-link">&larr; {m.back_to_browse()}</a>
 
 <style>
 	.back-link {
