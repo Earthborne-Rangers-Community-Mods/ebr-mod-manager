@@ -12,7 +12,6 @@
 	import InstallButton from '$lib/ui/InstallButton.svelte';
 	import ModDescription from '$lib/ui/ModDescription.svelte';
 	import ModMetadata from '$lib/ui/ModMetadata.svelte';
-	import SafetyCallout from '$lib/ui/SafetyCallout.svelte';
 	import BackLink from '$lib/ui/BackLink.svelte';
 
 	let mod = $state<ModDetail | null>(null);
@@ -90,10 +89,6 @@
 				<p class="mod-description">{mod.description}</p>
 			</div>
 		</div>
-
-		{#if !mod.safeToAddMidCampaign}
-			<SafetyCallout notes={mod.midCampaignNotes} />
-		{/if}
 
 		{#if descriptionHtml}
 			<section class="about-section">

@@ -126,14 +126,9 @@
 							</h2>
 							<p class="mod-author">{mod.author ? m.mod_detail_author({ author: mod.author }) : m.mod_detail_unknown_author()}</p>
 							<p class="mod-description">{mod.description}</p>
-							<div class="mod-meta">
-								<span class="badge">{mod.type}</span>
-								{#if mod.safeToAddMidCampaign}
-									<span class="mod-safety safe">{m.mod_detail_safe_mid_campaign()}</span>
-								{:else}
-									<span class="mod-safety unsafe">{m.mod_detail_not_safe_mid_campaign()}</span>
-								{/if}
-							</div>
+						</div>
+						<div class="mod-aside">
+							<span class="badge">{mod.type}</span>
 						</div>
 					</a>
 				</li>
@@ -229,11 +224,11 @@
 	}
 
 	.mod-card-link {
-		display: flex;
-		gap: var(--spacing-md);
-		padding: var(--spacing-md);
+		display: block;
+		padding: var(--spacing-sm) var(--spacing-md);
 		color: inherit;
 		text-decoration: none;
+		position: relative;
 	}
 
 	.mod-card-link:hover {
@@ -266,27 +261,16 @@
 
 	.mod-description {
 		font-size: var(--font-size-sm);
-		margin-bottom: var(--spacing-sm);
 		line-height: var(--line-height-normal);
 	}
 
-	.mod-meta {
+	.mod-aside {
+		position: absolute;
+		top: var(--spacing-sm);
+		right: var(--spacing-md);
 		display: flex;
-		flex-wrap: wrap;
-		gap: var(--spacing-sm);
 		align-items: center;
-	}
-
-	.mod-safety {
-		font-size: var(--font-size-xs);
-	}
-
-	.mod-safety.safe {
-		color: var(--color-success);
-	}
-
-	.mod-safety.unsafe {
-		color: var(--color-error);
+		gap: var(--spacing-sm);
 	}
 
 	.make-your-own {
