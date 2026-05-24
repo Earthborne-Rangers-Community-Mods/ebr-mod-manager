@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Capacitor } from '@capacitor/core';
+	import { asset } from '$app/paths';
 	import * as m from '$lib/paraglide/messages.js';
 
 	// Android doesn't support obsidian://choose-vault; use bare obsidian:// to just open the app
@@ -7,7 +8,7 @@
 </script>
 
 <a class="obsidian-button" {href} aria-label={m.open_obsidian()} title={m.open_obsidian()}>
-	<img src="/obsidian-logo.svg" alt="" class="obsidian-logo" aria-hidden="true" />
+	<img src={asset('/obsidian-logo.svg')} alt="" class="obsidian-logo" aria-hidden="true" />
 </a>
 
 <style>
