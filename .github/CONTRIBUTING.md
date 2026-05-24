@@ -63,7 +63,7 @@ Open an issue before working on:
 
 ## Commit Messages
 
-Use clear, descriptive commit messages. One logical change per commit.
+Use clear, descriptive commit messages.
 
 ## Android / Capacitor
 

@@ -1,13 +1,12 @@
 ﻿# ebr-mod-manager
 
-A lightweight web app for browsing, downloading, and playing community mods for Earthborne Rangers. Built with **SvelteKit + adapter-static**, hosted on GitHub Pages.
+A web app for browsing and downoading community mods for Earthborne Rangers. Built with **SvelteKit + adapter-static**, hosted on GitHub Pages.
 
 ## What it does
 
 1. Fetches the mod registry from GitHub
 2. Lets users browse, search, and filter mods
 3. Downloads a mod (by pinned commit hash) and writes it to a local Obsidian vault folder
-4. Launches Obsidian to play
 
 ## Tech stack
 
@@ -25,8 +24,8 @@ A lightweight web app for browsing, downloading, and playing community mods for 
 
 ### Prerequisites
 
-- **Node.js** (LTS) - `winget install OpenJS.NodeJS.LTS`
-- **Android Studio** (for Android app builds) - `winget install Google.AndroidStudio`
+- **Node.js** (LTS) - [nodejs.org/en/download](https://nodejs.org/en/download) or via your platform's package manager (`winget install OpenJS.NodeJS.LTS`, `brew install node`, etc.)
+- **Android Studio** (for Android app builds) - [developer.android.com/studio](https://developer.android.com/studio)
 
 ### Build & Run
 
