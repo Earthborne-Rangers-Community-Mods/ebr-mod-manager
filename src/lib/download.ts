@@ -16,10 +16,13 @@ export function modZipUrl(mod: { repoUrl: string; commitHash: string }): string 
 	return `https://api.github.com/repos/${owner}/${repo}/zipball/${mod.commitHash}`;
 }
 
-/** Build a proxy-friendly URL for downloading a mod zip. */
+/** Build a proxy-friendly URL for downloading a mod zip.
+ * In production, VITE_GITHUB_PROXY_URL is set to the Cloudflare Worker base URL.
+ * In development, falls back to /github-api which the Vite dev proxy handles. */
 export function modZipProxyUrl(mod: { repoUrl: string; commitHash: string }): string {
 	const { owner, repo } = parseRepoUrl(mod.repoUrl);
-	return `/github-api/repos/${owner}/${repo}/zipball/${mod.commitHash}`;
+	const base = import.meta.env.VITE_GITHUB_PROXY_URL ?? '/github-api';
+	return `${base}/repos/${owner}/${repo}/zipball/${mod.commitHash}`;
 }
 
 /** Download a mod's content as a zip ArrayBuffer. */
