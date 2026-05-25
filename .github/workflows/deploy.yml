@@ -30,6 +30,7 @@ jobs:
       - run: npm run build
         env:
           BASE_PATH: /ebr-mod-manager
+          VITE_GITHUB_PROXY_URL: https://ebr-mod-proxy.ebr-mods.workers.dev
 
       - run: cp build/index.html build/404.html
 
