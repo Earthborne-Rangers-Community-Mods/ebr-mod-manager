@@ -124,6 +124,7 @@
 		justify-content: space-between;
 		gap: var(--spacing-md);
 		margin-bottom: var(--spacing-xs);
+		flex-wrap: wrap;
 	}
 
 	.mod-icon {

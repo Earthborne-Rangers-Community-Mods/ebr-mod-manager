@@ -129,7 +129,7 @@
 	}
 </script>
 
-<div class="install-section">
+<div class="install-section" class:android-message-mode={isAndroidBrowser()}>
 	{#if isAndroidBrowser()}
 		<span class="android-browser-message">{m.android_browser_install_blocked()}</span>
 	{:else if state.step === 'downloading'}
@@ -209,5 +209,14 @@
 		font-size: var(--font-size-sm);
 		color: var(--color-text-muted);
 		font-style: italic;
+	}
+
+	@media (max-width: 480px) {
+		.android-message-mode {
+			order: -1;
+			width: 100%;
+			justify-content: center;
+			flex-shrink: 1;
+		}
 	}
 </style>

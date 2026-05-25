@@ -15,6 +15,7 @@
 	.docs {
 		max-width: 42rem;
 		margin: 0 auto;
+		overflow-x: hidden;
 	}
 
 	.docs h1 {
