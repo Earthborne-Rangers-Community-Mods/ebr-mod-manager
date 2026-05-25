@@ -3,9 +3,7 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2025-05-23",
 	"vars": {
-		// ALLOWED_ORIGIN is the GitHub Pages URL. Set to "*" during testing,
-		// then lock to "https://<org>.github.io" before public launch.
-		"ALLOWED_ORIGIN": "*"
+		"ALLOWED_ORIGIN": "https://earthborne-rangers-community-mods.github.io"
 	}
 	// GITHUB_TOKEN is stored as an encrypted secret - do not set it here.
 	// Deploy via: wrangler secret put GITHUB_TOKEN
