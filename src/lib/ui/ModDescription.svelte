@@ -7,12 +7,14 @@
 	// link interceptor in `+layout.svelte` keeps working.
 	import { onMount } from 'svelte';
 	import { getBaseContentCss } from '$lib/base-content.js';
+	import { getTheme, type Theme } from '$lib/theme.js';
 
 	let { html }: { html: string } = $props();
 
 	let host: HTMLDivElement | undefined = $state();
 	let shadow: ShadowRoot | null = null;
 	let baseCss = $state('');
+	let theme = $state<Theme>(getTheme());
 
 	// Container CSS, applied inside the shadow root before the fetched
 	// snippets so the snippet's rules win on order.
@@ -43,6 +45,16 @@
 
 	onMount(async () => {
 		baseCss = await getBaseContentCss();
+
+		// Keep theme in sync when the toggle changes data-theme on <html>.
+		const observer = new MutationObserver(() => {
+			theme = getTheme();
+		});
+		observer.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ['data-theme']
+		});
+		return () => observer.disconnect();
 	});
 
 	// Whenever the host mounts or the content / CSS changes, rebuild the
@@ -56,6 +68,7 @@
 		// Reading these declares them as effect dependencies.
 		const currentHtml = html;
 		const currentBaseCss = baseCss;
+		const currentTheme = theme;
 
 		const containerStyle = document.createElement('style');
 		containerStyle.textContent = containerCss;
@@ -63,13 +76,11 @@
 		const baseStyle = document.createElement('style');
 		baseStyle.textContent = currentBaseCss;
 
-		// Render description content without the Obsidian theme wrapper.
-		// The .markdown-reading-view class is omitted intentionally so
-		// Obsidian-scoped CSS rules (background colors, view-specific
-		// layout) don't fire. The content adopts the host page's
-		// typography and surface colors instead.
+		// The theme class (theme-light / theme-dark) enables the EBR
+		// CSS snippet's color rules to match inside the shadow DOM the
+		// same way they match inside Obsidian's reading view.
 		const content = document.createElement('div');
-		content.className = 'description-content markdown-rendered';
+		content.className = `description-content markdown-rendered theme-${currentTheme}`;
 		// The HTML here comes from our own markdown renderer running on
 		// content fetched at the registry-pinned commit hash -- the same
 		// trust boundary the rest of the app already accepts.
