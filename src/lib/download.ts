@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { parseRepoUrl } from './registry.js';
-import { ModDownloadError } from './errors.js';
+import { ModDownloadError, NetworkError } from './errors.js';
 
 export interface DownloadProgress {
 	receivedBytes: number;
@@ -31,6 +31,7 @@ export async function downloadModZip(
 	options?: {
 		token?: string;
 		onProgress?: (progress: DownloadProgress) => void;
+		signal?: AbortSignal;
 	},
 ): Promise<ArrayBuffer> {
 	const url = Capacitor.isNativePlatform() ? modZipUrl(mod) : modZipProxyUrl(mod);
@@ -41,16 +42,37 @@ export async function downloadModZip(
 		headers['Authorization'] = `Bearer ${options.token}`;
 	}
 
-	const response = await fetch(url, { headers });
+	const fetchOptions: RequestInit = { headers };
+	if (options?.signal) {
+		fetchOptions.signal = options.signal;
+	}
+
+	let response: Response;
+	try {
+		response = await fetch(url, fetchOptions);
+	} catch (err) {
+		if (err instanceof DOMException && err.name === 'AbortError') {
+			throw err; // Re-throw user-initiated abort as-is
+		}
+		throw new NetworkError(`Network error downloading mod: ${url}`, err);
+	}
+
 	if (!response.ok) {
 		throw new ModDownloadError(mod.commitHash, url, response.status, response.statusText);
 	}
 
-	if (options?.onProgress && response.body) {
-		return streamWithProgress(response, options.onProgress);
+	try {
+		if (options?.onProgress && response.body) {
+			return await streamWithProgress(response, options.onProgress);
+		}
+		return await response.arrayBuffer();
+	} catch (err) {
+		if (err instanceof DOMException && err.name === 'AbortError') {
+			throw err;
+		}
+		// Stream read failure mid-download is a network error
+		throw new NetworkError(`Connection lost while downloading mod: ${url}`, err);
 	}
-
-	return response.arrayBuffer();
 }
 
 async function streamWithProgress(

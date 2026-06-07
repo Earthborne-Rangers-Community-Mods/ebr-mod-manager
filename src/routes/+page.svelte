@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import * as m from '$lib/paraglide/messages.js';
 	import { fetchRegistry, type BrowseMod, type ModType } from '$lib/registry.js';
+	import { RegistryFetchError } from '$lib/errors.js';
 	import {
 		getInstallMethod,
 		changeVaultTarget,
@@ -50,8 +51,13 @@
 		try {
 			const registry = await fetchRegistry();
 			mods = registry.mods;
-		} catch {
-			error = m.error_registry_fetch();
+		} catch (err) {
+			console.error('Registry fetch failed:', err);
+			if (err instanceof RegistryFetchError && err.httpStatus >= 500) {
+				error = m.error_registry_fetch_server();
+			} else {
+				error = m.error_registry_fetch();
+			}
 		} finally {
 			loading = false;
 		}
@@ -112,7 +118,10 @@
 	{#if loading}
 		<p class="status-message">{m.loading_registry()}</p>
 	{:else if error}
-		<p class="status-message error">{error}</p>
+		<div class="error-block">
+			<p class="status-message error">{error}</p>
+			<button class="btn-secondary retry-button" onclick={loadRegistry}>{m.retry()}</button>
+		</div>
 	{:else if filteredMods.length === 0}
 		<p class="status-message">{m.no_mods_found()}</p>
 	{:else}
@@ -288,5 +297,16 @@
 
 	.make-your-own a:hover {
 		color: var(--color-primary);
+	}
+
+	.error-block {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--spacing-sm);
+	}
+
+	.retry-button {
+		min-height: 2.5rem;
 	}
 </style>

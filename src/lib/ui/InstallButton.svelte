@@ -11,7 +11,15 @@
 		writeVaultFiles,
 		setInstalledMod,
 	} from '$lib/vault.js';
-	import { PathTraversalError, ModDownloadError, VaultDirectoryMissingError, ZipHashMismatchError } from '$lib/errors.js';
+	import {
+		PathTraversalError,
+		ModDownloadError,
+		VaultDirectoryMissingError,
+		VaultQuotaExceededError,
+		VaultPermissionError,
+		ZipHashMismatchError,
+		isNetworkError,
+	} from '$lib/errors.js';
 	import { getToken } from '$lib/devsettings.js';
 	import type { ModDetail } from '$lib/registry.js';
 
@@ -20,6 +28,8 @@
 	}
 
 	let { mod }: Props = $props();
+
+	const method = getInstallMethod();
 
 	type InstallState =
 		| { step: 'idle' }
@@ -36,7 +46,6 @@
 
 		try {
 			const token = getToken() ?? undefined;
-			const method = getInstallMethod();
 
 			if (method === 'vault-write') {
 				const target = await pickVaultTarget(mod.id);
@@ -112,6 +121,10 @@
 				state = { step: 'error', message: m.error_hash_mismatch() };
 			} else if (err instanceof VaultDirectoryMissingError) {
 				state = { step: 'error', message: m.error_vault_removed() };
+			} else if (err instanceof VaultQuotaExceededError) {
+				state = { step: 'error', message: m.error_vault_quota() };
+			} else if (err instanceof VaultPermissionError) {
+				state = { step: 'error', message: m.error_vault_permission() };
 			} else if (err instanceof DOMException && err.name === 'AbortError') {
 				state = { step: 'idle' };
 			} else if (err instanceof ModDownloadError) {
@@ -122,7 +135,7 @@
 				} else {
 					state = { step: 'error', message: m.error_download_failed() };
 				}
-			} else if (err instanceof TypeError && err.message.includes('fetch')) {
+			} else if (isNetworkError(err)) {
 				state = { step: 'error', message: m.error_download_network() };
 			} else {
 				state = { step: 'error', message: m.error_download_failed() };
@@ -150,14 +163,15 @@
 			{state.message}
 		</button>
 	{:else if state.step === 'complete'}
-		<span class="download-success">{m.vault_write_complete()}</span>
+		<span class="download-success">{method === 'zip-download' ? m.zip_download_complete() : m.vault_write_complete()}</span>
 	{:else}
 		<button class="install-button" onclick={handleDownload}>
-			{m.install_button()}
+			{method === 'zip-download' ? m.download_zip_button() : m.install_button()}
 		</button>
 	{/if}
 	{#if state.step === 'error'}
 		<span class="download-error">{state.message}</span>
+		<button class="retry-button" onclick={handleDownload}>{m.retry()}</button>
 	{/if}
 </div>
 
@@ -205,6 +219,24 @@
 	.download-error {
 		font-size: var(--font-size-sm);
 		color: var(--color-error);
+	}
+
+	.retry-button {
+		font-size: var(--font-size-sm);
+		padding: var(--spacing-xs) var(--spacing-sm);
+		background: transparent;
+		color: var(--color-primary);
+		border: 1px solid var(--color-primary);
+		border-radius: var(--radius);
+		cursor: pointer;
+		font-weight: 500;
+		transition: background var(--transition-fast);
+		touch-action: manipulation;
+	}
+
+	.retry-button:hover {
+		background: var(--color-primary);
+		color: var(--color-primary-text);
 	}
 
 	.android-browser-message {

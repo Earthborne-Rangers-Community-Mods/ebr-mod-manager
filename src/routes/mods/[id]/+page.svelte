@@ -7,6 +7,7 @@
 		rewriteImagePaths,
 		type ModDetail,
 	} from '$lib/registry.js';
+	import { ModDetailFetchError, isNetworkError } from '$lib/errors.js';
 	import { renderMarkdown } from '$lib/markdown.js';
 	import { getToken } from '$lib/devsettings.js';
 	import InstallButton from '$lib/ui/InstallButton.svelte';
@@ -27,8 +28,15 @@
 
 		try {
 			mod = await fetchModDetail(modId);
-		} catch {
-			error = m.mod_detail_fetch_error();
+		} catch (err) {
+			console.error(`Failed to load mod '${modId}':`, err);
+			if (err instanceof ModDetailFetchError && err.httpStatus === 404) {
+				error = m.mod_detail_not_found();
+			} else if (isNetworkError(err)) {
+				error = m.error_mod_detail_network();
+			} else {
+				error = m.mod_detail_fetch_error();
+			}
 			loading = false;
 			return;
 		}
@@ -66,7 +74,10 @@
 	{#if loading}
 		<p class="status-message">{m.mod_detail_loading()}</p>
 	{:else if error}
-		<p class="status-message error">{error}</p>
+		<div class="error-block">
+			<p class="status-message error">{error}</p>
+			<button class="btn-secondary retry-button" onclick={() => { if (page.params.id) loadMod(page.params.id); }}>{m.retry()}</button>
+		</div>
 	{:else if mod}
 		<div class="detail-header">
 			<div class="header-content">
@@ -188,5 +199,16 @@
 
 	.about-section {
 		margin-top: var(--spacing-lg);
+	}
+
+	.error-block {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--spacing-sm);
+	}
+
+	.retry-button {
+		min-height: 2.5rem;
 	}
 </style>

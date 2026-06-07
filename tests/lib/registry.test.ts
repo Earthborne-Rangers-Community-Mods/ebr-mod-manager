@@ -6,12 +6,14 @@ import {
 	rewriteImagePaths,
 	getRegistryCampaignName,
 	fetchDescription,
+	fetchRegistry,
 	DESCRIPTION_FILENAME,
 } from '$lib/registry.js';
 import {
 	RegistryParseError,
 	InvalidRepoUrlError,
 	DescriptionFetchError,
+	NetworkError,
 } from '$lib/errors.js';
 import type { BrowseMod } from '$lib/registry.js';
 
@@ -441,5 +443,54 @@ describe('getRegistryCampaignName', () => {
 		]));
 		expect(getRegistryCampaignName('campaign-a')).toBe('campaign-a');
 		expect(getRegistryCampaignName('campaign-b')).toBe('Campaign B');
+	});
+});
+
+// --- fetchRegistry ---
+
+describe('fetchRegistry', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('throws NetworkError when fetch throws TypeError (offline / DNS failure)', async () => {
+		vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+		await expect(fetchRegistry()).rejects.toBeInstanceOf(NetworkError);
+	});
+
+	it('preserves the original TypeError as cause on the NetworkError', async () => {
+		const original = new TypeError('Failed to fetch');
+		vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(original);
+
+		try {
+			await fetchRegistry();
+			throw new Error('Expected to throw');
+		} catch (err) {
+			expect(err).toBeInstanceOf(NetworkError);
+			expect((err as NetworkError).cause).toBe(original);
+		}
+	});
+
+	it('throws RegistryParseError when the response body is not valid JSON', async () => {
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response('not json at all', { status: 200 }),
+		);
+
+		await expect(fetchRegistry()).rejects.toBeInstanceOf(RegistryParseError);
+	});
+
+	it('RegistryParseError from bad JSON targets the root field', async () => {
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response('not json at all', { status: 200 }),
+		);
+
+		try {
+			await fetchRegistry();
+			throw new Error('Expected to throw');
+		} catch (err) {
+			expect(err).toBeInstanceOf(RegistryParseError);
+			expect((err as RegistryParseError).field).toBe('root');
+		}
 	});
 });

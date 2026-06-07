@@ -9,6 +9,7 @@ import {
 	RegistryParseError,
 	ModParseError,
 	InvalidRepoUrlError,
+	NetworkError,
 } from './errors.js';
 
 import type { ModType, BrowseMod, ModDetail, Registry } from './types.js';
@@ -49,22 +50,42 @@ function buildCampaignNameMap(mods: BrowseMod[]): void {
 /** Fetch and parse the browse-tier registry. */
 export async function fetchRegistry(): Promise<Registry> {
 	const url = `${RAW_BASE}/registry.json`;
-	const response = await fetch(url);
+	let response: Response;
+	try {
+		response = await fetch(url);
+	} catch (err) {
+		throw new NetworkError(`Network error fetching registry: ${url}`, err);
+	}
 	if (!response.ok) {
 		throw new RegistryFetchError(url, response.status, response.statusText);
 	}
-	const data: unknown = await response.json();
+	let data: unknown;
+	try {
+		data = await response.json();
+	} catch (err) {
+		throw new RegistryParseError('root', `Registry response is not valid JSON`);
+	}
 	return parseRegistry(data);
 }
 
 /** Fetch the detail-tier data for a specific mod. */
 export async function fetchModDetail(modId: string): Promise<ModDetail> {
 	const url = `${RAW_BASE}/mods/${encodeURIComponent(modId)}.json`;
-	const response = await fetch(url);
+	let response: Response;
+	try {
+		response = await fetch(url);
+	} catch (err) {
+		throw new NetworkError(`Network error fetching mod detail for '${modId}': ${url}`, err);
+	}
 	if (!response.ok) {
 		throw new ModDetailFetchError(modId, url, response.status, response.statusText);
 	}
-	const data: unknown = await response.json();
+	let data: unknown;
+	try {
+		data = await response.json();
+	} catch (err) {
+		throw new RegistryParseError('root', `Mod detail response for '${modId}' is not valid JSON`);
+	}
 	validateModObject(data, modId);
 	return data as ModDetail;
 }
@@ -91,7 +112,12 @@ export async function fetchDescription(
 		headers['Authorization'] = `Bearer ${token}`;
 		headers['Accept'] = 'application/vnd.github.raw';
 	}
-	const response = await fetch(url, { headers });
+	let response: Response;
+	try {
+		response = await fetch(url, { headers });
+	} catch (err) {
+		throw new NetworkError(`Network error fetching mod description`, err);
+	}
 	if (response.status === 404) {
 		return null;
 	}

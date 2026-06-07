@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { modZipUrl, modZipProxyUrl, downloadModZip } from '$lib/download.js';
-import { ModDownloadError } from '$lib/errors.js';
+import { ModDownloadError, NetworkError } from '$lib/errors.js';
 import { InvalidRepoUrlError } from '$lib/errors.js';
 
 vi.mock('@capacitor/core', () => ({
@@ -289,5 +289,24 @@ describe('downloadModZip', () => {
 			'/github-api/repos/creator/ebr-mod-base-content/zipball/a1b2c3d4e5f6',
 			expect.any(Object),
 		);
+	});
+
+	it('wraps TypeError from fetch as NetworkError', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+
+		await expect(downloadModZip(mod)).rejects.toBeInstanceOf(NetworkError);
+	});
+
+	it('preserves the original TypeError as cause on the NetworkError', async () => {
+		const original = new TypeError('Failed to fetch');
+		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(original));
+
+		try {
+			await downloadModZip(mod);
+			throw new Error('Expected to throw');
+		} catch (err) {
+			expect(err).toBeInstanceOf(NetworkError);
+			expect((err as NetworkError).cause).toBe(original);
+		}
 	});
 });

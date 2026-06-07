@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import EbrVaultPlugin from './ebr-vault-plugin.js';
 import type { ExtractedFile } from './extraction.js';
-import { VaultDirectoryMissingError } from './errors.js';
+import { VaultDirectoryMissingError, VaultQuotaExceededError, VaultPermissionError, isQuotaError, isPermissionError } from './errors.js';
 
 // --- Unified vault types ---
 
@@ -150,10 +150,16 @@ function vaultMarkersFirst(files: ExtractedFile[]): ExtractedFile[] {
 
 // --- Native (Capacitor) implementation via ebr-vault-plugin ---
 
-/** Wrap "Directory not found" plugin errors as VaultDirectoryMissingError; rethrow all others. */
-function wrapDirectoryMissingError(err: unknown): never {
+/** Wrap known plugin errors as typed vault errors; rethrow all others. */
+function wrapNativeVaultError(err: unknown): never {
 	if (err instanceof Error && err.message.includes('Directory not found')) {
 		throw new VaultDirectoryMissingError();
+	}
+	if (isQuotaError(err)) {
+		throw new VaultQuotaExceededError();
+	}
+	if (isPermissionError(err)) {
+		throw new VaultPermissionError();
 	}
 	throw err;
 }
@@ -171,20 +177,24 @@ export async function writeVaultNative(
 		// Prevent Android media scanner from indexing vault images
 		await EbrVaultPlugin.writeFile({ path: '.nomedia', data: '' });
 	} catch (err) {
-		wrapDirectoryMissingError(err);
+		wrapNativeVaultError(err);
 	}
 
 	// Write files with limited concurrency
 	const CONCURRENCY = 6;
 	for (let i = 0; i < ordered.length; i += CONCURRENCY) {
 		const batch = ordered.slice(i, i + CONCURRENCY);
-		await Promise.all(batch.map(async (file) => {
-			const base64 = uint8ArrayToBase64(file.data);
-			await EbrVaultPlugin.writeFile({ path: file.path, data: base64 });
+		try {
+			await Promise.all(batch.map(async (file) => {
+				const base64 = uint8ArrayToBase64(file.data);
+				await EbrVaultPlugin.writeFile({ path: file.path, data: base64 });
 
-			written++;
-			options?.onProgress?.(written, total);
-		}));
+				written++;
+				options?.onProgress?.(written, total);
+			}));
+		} catch (err) {
+			wrapNativeVaultError(err);
+		}
 	}
 }
 
@@ -217,7 +227,7 @@ export async function clearVaultNative(
 		}
 		await EbrVaultPlugin.clearVaultContents();
 	} catch (err) {
-		wrapDirectoryMissingError(err);
+		wrapNativeVaultError(err);
 	} finally {
 		await listener?.remove();
 	}
@@ -319,7 +329,13 @@ export async function writeVaultBrowser(
 	const CONCURRENCY = 6;
 	for (let i = 0; i < ordered.length; i += CONCURRENCY) {
 		const batch = ordered.slice(i, i + CONCURRENCY);
-		await Promise.all(batch.map(writeFile));
+		try {
+			await Promise.all(batch.map(writeFile));
+		} catch (err) {
+			if (isQuotaError(err)) throw new VaultQuotaExceededError();
+			if (isPermissionError(err)) throw new VaultPermissionError();
+			throw err;
+		}
 	}
 }
 

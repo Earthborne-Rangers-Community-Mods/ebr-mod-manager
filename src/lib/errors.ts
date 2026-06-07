@@ -1,3 +1,15 @@
+// --- Network errors ---
+
+/** Base class for all network-level failures (offline, DNS, connection refused, etc.). */
+export class NetworkError extends Error {
+	cause: unknown;
+	constructor(message: string, cause?: unknown) {
+		super(message);
+		this.name = 'NetworkError';
+		this.cause = cause;
+	}
+}
+
 // --- Fetch errors ---
 
 export class RegistryFetchError extends Error {
@@ -104,4 +116,70 @@ export class VaultDirectoryMissingError extends Error {
 		super('Vault directory no longer exists');
 		this.name = 'VaultDirectoryMissingError';
 	}
+}
+
+/** The filesystem ran out of space during a vault write. */
+export class VaultQuotaExceededError extends Error {
+	constructor() {
+		super('Not enough storage space to install this mod');
+		this.name = 'VaultQuotaExceededError';
+	}
+}
+
+/** The app lost permission to write to the vault directory. */
+export class VaultPermissionError extends Error {
+	constructor() {
+		super('Permission to write to the vault folder was denied');
+		this.name = 'VaultPermissionError';
+	}
+}
+
+// --- Helpers ---
+
+/**
+ * Determine whether an unknown error is a network-level failure (offline,
+ * DNS resolution, connection refused, CORS, etc.). Network errors from
+ * fetch() surface as TypeError in all major browsers.
+ */
+export function isNetworkError(err: unknown): boolean {
+	if (err instanceof NetworkError) return true;
+	if (err instanceof TypeError) {
+		// fetch() throws TypeError for network failures. Match known browser
+		// messages: "Failed to fetch" (Chrome), "NetworkError when attempting
+		// to fetch resource" (Firefox), "Load failed" (Safari).
+		const msg = err.message.toLowerCase();
+		return msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('load failed');
+	}
+	return false;
+}
+
+/**
+ * Determine whether an unknown vault write error is a quota/storage issue.
+ */
+export function isQuotaError(err: unknown): boolean {
+	if (err instanceof VaultQuotaExceededError) return true;
+	if (err instanceof DOMException) {
+		if (err.name === 'QuotaExceededError') return true;
+		if (err.name === 'AbortError' && err.message.toLowerCase().includes('quota')) return true;
+	}
+	if (err instanceof Error) {
+		const msg = err.message.toLowerCase();
+		return msg.includes('quota') || msg.includes('no space') || msg.includes('disk full');
+	}
+	return false;
+}
+
+/**
+ * Determine whether an unknown vault write error is a permission issue.
+ */
+export function isPermissionError(err: unknown): boolean {
+	if (err instanceof VaultPermissionError) return true;
+	if (err instanceof DOMException) {
+		return err.name === 'NotAllowedError' || err.name === 'SecurityError';
+	}
+	if (err instanceof Error) {
+		const msg = err.message.toLowerCase();
+		return msg.includes('permission') || msg.includes('not allowed');
+	}
+	return false;
 }
