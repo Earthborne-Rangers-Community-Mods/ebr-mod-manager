@@ -11,7 +11,7 @@
 		writeVaultFiles,
 		setInstalledMod,
 	} from '$lib/vault.js';
-	import { PathTraversalError, ModDownloadError, VaultDirectoryMissingError } from '$lib/errors.js';
+	import { PathTraversalError, ModDownloadError, VaultDirectoryMissingError, ZipHashMismatchError } from '$lib/errors.js';
 	import { getToken } from '$lib/devsettings.js';
 	import type { ModDetail } from '$lib/registry.js';
 
@@ -63,7 +63,7 @@
 				});
 
 				state = { step: 'writing', message: m.extracting_mod() };
-				const files = await extractModZipAsync(zipBuffer);
+				const files = await extractModZipAsync(zipBuffer, { expectedCommitHash: mod.commitHash });
 
 				state = { step: 'writing', message: m.clearing_vault() };
 				await clearVault(target, {
@@ -94,7 +94,7 @@
 					},
 				});
 
-				const cleanZip = await repackageModZipAsync(zipBuffer);
+				const cleanZip = await repackageModZipAsync(zipBuffer, { expectedCommitHash: mod.commitHash });
 				const blob = new Blob([cleanZip as BlobPart], { type: 'application/zip' });
 				const url = URL.createObjectURL(blob);
 				const a = document.createElement('a');
@@ -108,6 +108,8 @@
 			console.error('Mod install failed:', err);
 			if (err instanceof PathTraversalError) {
 				state = { step: 'error', message: m.error_extraction_security() };
+			} else if (err instanceof ZipHashMismatchError) {
+				state = { step: 'error', message: m.error_hash_mismatch() };
 			} else if (err instanceof VaultDirectoryMissingError) {
 				state = { step: 'error', message: m.error_vault_removed() };
 			} else if (err instanceof DOMException && err.name === 'AbortError') {

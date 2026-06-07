@@ -86,6 +86,17 @@ export class PathTraversalError extends Error {
 	}
 }
 
+export class ZipHashMismatchError extends Error {
+	expectedHash: string;
+	actualHash: string;
+	constructor(expectedHash: string, actualHash: string) {
+		super(`Zip commit hash mismatch: expected ${expectedHash}, got ${actualHash}`);
+		this.name = 'ZipHashMismatchError';
+		this.expectedHash = expectedHash;
+		this.actualHash = actualHash;
+	}
+}
+
 // --- Vault errors ---
 
 export class VaultDirectoryMissingError extends Error {

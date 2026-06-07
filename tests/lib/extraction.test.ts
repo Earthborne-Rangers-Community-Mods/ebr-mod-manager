@@ -7,9 +7,10 @@ import {
 	assertNoPathTraversal,
 	isBlocked,
 	hasAllowedExtension,
+	verifyZipCommitHash,
 	ALLOWED_EXTENSIONS,
 } from '$lib/extraction.js';
-import { PathTraversalError } from '$lib/errors.js';
+import { PathTraversalError, ZipHashMismatchError } from '$lib/errors.js';
 
 /** Helper: build a zip buffer with given file entries. */
 function makeZip(files: Record<string, string | Uint8Array>): ArrayBuffer {
@@ -74,6 +75,13 @@ describe('assertNoPathTraversal', () => {
 
 	it('rejects paths with backslashes', () => {
 		expect(() => assertNoPathTraversal('src\\..\\etc\\passwd')).toThrow(PathTraversalError);
+	});
+	it('rejects paths with null bytes', () => {
+		expect(() => assertNoPathTraversal('src/file\0.md')).toThrow(PathTraversalError);
+	});
+
+	it('rejects paths with embedded null bytes before extension', () => {
+		expect(() => assertNoPathTraversal('malware.exe\0.md')).toThrow(PathTraversalError);
 	});
 });
 
@@ -338,5 +346,153 @@ describe('repackageModZip', () => {
 
 		expect(paths).toContain('readme.md');
 		expect(paths).not.toContain('.obsidian/plugins/evil/manifest.json');
+	});
+
+	it('verifies commit hash when expectedCommitHash is provided', () => {
+		const zip = makeZip({
+			'owner-repo-abc1234/': new Uint8Array(0),
+			'owner-repo-abc1234/readme.md': '# OK',
+		});
+
+		const cleanZip = repackageModZip(zip, { expectedCommitHash: 'abc1234567890abcdef' });
+		const entries = unzipSync(cleanZip);
+		expect(Object.keys(entries)).toContain('readme.md');
+	});
+
+	it('throws ZipHashMismatchError when commit hash mismatches during repackage', () => {
+		const zip = makeZip({
+			'owner-repo-abc1234/': new Uint8Array(0),
+			'owner-repo-abc1234/readme.md': '# OK',
+		});
+
+		expect(() => repackageModZip(zip, { expectedCommitHash: 'ffffff0000000000000' }))
+			.toThrow(ZipHashMismatchError);
+	});
+});
+
+// --- verifyZipCommitHash ---
+
+describe('verifyZipCommitHash', () => {
+	it('passes when short hash matches expected full hash', () => {
+		expect(() => verifyZipCommitHash(
+			'owner-repo-abc1234/',
+			'abc1234567890abcdef1234567890abcdef123456'
+		)).not.toThrow();
+	});
+
+	it('passes when full hash starts with the short hash (7 chars)', () => {
+		expect(() => verifyZipCommitHash(
+			'some-owner-some-repo-f4c8a91/',
+			'f4c8a911234567890abcdef1234567890abcdef12'
+		)).not.toThrow();
+	});
+
+	it('is case-insensitive', () => {
+		expect(() => verifyZipCommitHash(
+			'owner-repo-ABC1234/',
+			'abc1234567890abcdef1234567890abcdef123456'
+		)).not.toThrow();
+	});
+
+	it('throws ZipHashMismatchError when hashes do not match', () => {
+		expect(() => verifyZipCommitHash(
+			'owner-repo-ffffff/',
+			'abc1234567890abcdef1234567890abcdef123456'
+		)).toThrow(ZipHashMismatchError);
+	});
+
+	it('throws when prefix has no hyphen', () => {
+		expect(() => verifyZipCommitHash(
+			'nohyphen/',
+			'abc1234567890abcdef1234567890abcdef123456'
+		)).toThrow(ZipHashMismatchError);
+	});
+
+	it('throws when hash suffix is empty (trailing hyphen in dir name)', () => {
+		expect(() => verifyZipCommitHash(
+			'owner-repo-/',
+			'abc1234567890abcdef1234567890abcdef123456'
+		)).toThrow(ZipHashMismatchError);
+	});
+
+	it('handles repos with hyphens in owner or name', () => {
+		expect(() => verifyZipCommitHash(
+			'my-org-my-cool-repo-abc1234/',
+			'abc1234567890abcdef1234567890abcdef123456'
+		)).not.toThrow();
+	});
+
+	it('rejects when only first 7 chars match but suffix is longer and diverges', () => {
+		expect(() => verifyZipCommitHash(
+			'owner-repo-abc1234xxx/',
+			'abc1234567890abcdef1234567890abcdef123456'
+		)).toThrow(ZipHashMismatchError);
+	});
+
+	it('populates expectedHash and actualHash on ZipHashMismatchError', () => {
+		let caught: ZipHashMismatchError | undefined;
+		try {
+			verifyZipCommitHash('owner-repo-ffffff/', 'abc1234567890abcdef');
+		} catch (e) {
+			caught = e as ZipHashMismatchError;
+		}
+		expect(caught).toBeInstanceOf(ZipHashMismatchError);
+		expect(caught?.expectedHash).toBe('abc1234567890abcdef');
+		expect(caught?.actualHash).toBe('ffffff');
+	});
+});
+
+// --- extractModZip with commit hash verification ---
+
+describe('extractModZip with expectedCommitHash', () => {
+	it('extracts normally when commit hash matches', () => {
+		const zip = makeZip({
+			'owner-repo-abc1234/': new Uint8Array(0),
+			'owner-repo-abc1234/readme.md': '# Hello',
+		});
+
+		const files = extractModZip(zip, { expectedCommitHash: 'abc1234567890abcdef' });
+		expect(files).toHaveLength(1);
+		expect(files[0].path).toBe('readme.md');
+	});
+
+	it('throws ZipHashMismatchError when commit hash does not match', () => {
+		const zip = makeZip({
+			'owner-repo-abc1234/': new Uint8Array(0),
+			'owner-repo-abc1234/readme.md': '# Hello',
+		});
+
+		expect(() => extractModZip(zip, { expectedCommitHash: 'ffffff0000000000000' }))
+			.toThrow(ZipHashMismatchError);
+	});
+
+	it('does not verify when expectedCommitHash is not provided', () => {
+		const zip = makeZip({
+			'owner-repo-abc1234/': new Uint8Array(0),
+			'owner-repo-abc1234/readme.md': '# Hello',
+		});
+
+		// Should not throw even though no hash to compare
+		const files = extractModZip(zip);
+		expect(files).toHaveLength(1);
+	});
+
+	it('throws when zip has no top-level prefix (fail-closed)', () => {
+		const zip = makeZip({
+			'readme.md': '# Hello',
+			'data.json': '{}',
+		});
+
+		// No top-level prefix detected - cannot verify commit origin, so reject
+		expect(() => extractModZip(zip, { expectedCommitHash: 'abc1234' }))
+			.toThrow(ZipHashMismatchError);
+	});
+
+	it('throws PathTraversalError for null byte path in zip', () => {
+		const zip = makeZip({
+			'prefix/': new Uint8Array(0),
+			'prefix/malware.exe\0.md': 'evil',
+		});
+		expect(() => extractModZip(zip)).toThrow(PathTraversalError);
 	});
 });

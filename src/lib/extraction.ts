@@ -1,6 +1,7 @@
 import { unzipSync, zipSync } from 'fflate';
 import {
 	PathTraversalError,
+	ZipHashMismatchError,
 } from './errors.js';
 
 /**
@@ -33,23 +34,39 @@ export interface ExtractedFile {
 	data: Uint8Array;
 }
 
+export interface ExtractOptions {
+	/** Expected git commit hash. If provided, the zip top-level directory is verified against it. */
+	expectedCommitHash?: string;
+}
+
 /**
  * Extract a GitHub zip archive into a flat list of files with security checks:
  * - Path traversal protection (no ../ or absolute paths)
  * - File extension allowlist
  * - .obsidian/plugins/ blocklist
+ * - Optional commit hash verification
  *
  * GitHub zips contain a top-level directory (e.g. "owner-repo-hash/").
  * This function strips that prefix so paths are relative to the vault root.
  */
-export function extractModZip(zipBuffer: ArrayBuffer): ExtractedFile[] {
+export function extractModZip(zipBuffer: ArrayBuffer, options?: ExtractOptions): ExtractedFile[] {
 	const zipData = new Uint8Array(zipBuffer);
 	const entries = unzipSync(zipData);
 	const files: ExtractedFile[] = [];
 
 	// Detect the common top-level directory prefix from GitHub's zip format.
 	// All entries in a GitHub zipball start with "owner-repo-commitsha/".
-	const topLevelPrefix = detectTopLevelPrefix(Object.keys(entries));
+	const paths = Object.keys(entries);
+	const topLevelPrefix = detectTopLevelPrefix(paths);
+
+	// Verify the zip came from the expected commit
+	if (options?.expectedCommitHash) {
+		if (!topLevelPrefix) {
+			// No top-level directory detected - cannot verify origin. Fail closed.
+			throw new ZipHashMismatchError(options.expectedCommitHash, '(no prefix)');
+		}
+		verifyZipCommitHash(topLevelPrefix, options.expectedCommitHash);
+	}
 
 	for (const [rawPath, data] of Object.entries(entries)) {
 		// Skip directories (they have zero-length data and trailing slash)
@@ -97,9 +114,14 @@ export function detectTopLevelPrefix(paths: string[]): string {
 
 /**
  * Assert a file path does not escape the extraction root.
- * Rejects: absolute paths, ".." segments, backslash paths.
+ * Rejects: absolute paths, ".." segments, backslash paths, null bytes.
  */
 export function assertNoPathTraversal(filePath: string): void {
+	// Reject null bytes (can bypass C-level path checks)
+	if (filePath.includes('\0')) {
+		throw new PathTraversalError(filePath);
+	}
+
 	// Reject absolute paths
 	if (filePath.startsWith('/') || /^[A-Za-z]:/.test(filePath)) {
 		throw new PathTraversalError(filePath);
@@ -146,12 +168,46 @@ export function hasAllowedExtension(filePath: string): boolean {
 }
 
 /**
+ * Verify a GitHub zip's top-level directory contains the expected commit hash.
+ * GitHub zipballs use a directory named "owner-repo-shortcommithash/".
+ * The short hash is always 7 lowercase hex characters.
+ * Throws ZipHashMismatchError if the hash doesn't match.
+ */
+export function verifyZipCommitHash(topLevelPrefix: string, expectedCommitHash: string): void {
+	// Strip trailing slash from the prefix
+	const dirName = topLevelPrefix.replace(/\/$/, '');
+
+	// GitHub uses the first 7+ characters of the commit hash as the suffix.
+	// The directory name format is: "owner-repo-shortcommithash"
+	// Extract the last segment after the final hyphen.
+	const lastHyphen = dirName.lastIndexOf('-');
+	if (lastHyphen === -1) {
+		throw new ZipHashMismatchError(expectedCommitHash, dirName);
+	}
+
+	const zipShortHash = dirName.slice(lastHyphen + 1).toLowerCase();
+
+	// Reject empty suffix (trailing hyphen in directory name)
+	if (!zipShortHash) {
+		throw new ZipHashMismatchError(expectedCommitHash, '');
+	}
+
+	const expectedLower = expectedCommitHash.toLowerCase();
+
+	// The expected full hash must start with the short hash from the zip.
+	// This is a strict one-directional prefix check.
+	if (!expectedLower.startsWith(zipShortHash)) {
+		throw new ZipHashMismatchError(expectedCommitHash, zipShortHash);
+	}
+}
+
+/**
  * Extract a zip, apply all security filters, and re-zip the clean files.
  * Used for the fallback browser download on unsupported browsers so users
  * never receive executables, plugins, or other blocked content.
  */
-export function repackageModZip(zipBuffer: ArrayBuffer): Uint8Array {
-	const files = extractModZip(zipBuffer);
+export function repackageModZip(zipBuffer: ArrayBuffer, options?: ExtractOptions): Uint8Array {
+	const files = extractModZip(zipBuffer, options);
 	const entries: Record<string, Uint8Array> = {};
 	for (const file of files) {
 		entries[file.path] = file.data;
@@ -177,10 +233,14 @@ function getWorker(): Worker {
 			pending.delete(msg.id);
 
 			if (msg.type === 'error') {
-				const err =
-					msg.errorName === 'PathTraversalError'
-						? new PathTraversalError(msg.message)
-						: new Error(msg.message);
+				let err: Error;
+				if (msg.errorName === 'PathTraversalError') {
+					err = new PathTraversalError(msg.filePath ?? msg.message);
+				} else if (msg.errorName === 'ZipHashMismatchError') {
+					err = new ZipHashMismatchError(msg.expectedHash ?? '', msg.actualHash ?? '');
+				} else {
+					err = new Error(msg.message);
+				}
 				entry.reject(err);
 			} else {
 				entry.resolve(msg);
@@ -190,24 +250,24 @@ function getWorker(): Worker {
 	return worker;
 }
 
-function call(type: 'extract' | 'repackage', zipBuffer: ArrayBuffer): Promise<WorkerResponse> {
+function call(type: 'extract' | 'repackage', zipBuffer: ArrayBuffer, options?: { expectedCommitHash?: string }): Promise<WorkerResponse> {
 	return new Promise((resolve, reject) => {
 		const id = nextId++;
 		pending.set(id, { resolve, reject });
-		getWorker().postMessage({ id, type, zipBuffer }, [zipBuffer]);
+		getWorker().postMessage({ id, type, zipBuffer, expectedCommitHash: options?.expectedCommitHash }, [zipBuffer]);
 	});
 }
 
 /** Extract mod zip off the main thread. */
-export async function extractModZipAsync(zipBuffer: ArrayBuffer): Promise<ExtractedFile[]> {
-	const result = await call('extract', zipBuffer);
+export async function extractModZipAsync(zipBuffer: ArrayBuffer, options?: ExtractOptions): Promise<ExtractedFile[]> {
+	const result = await call('extract', zipBuffer, { expectedCommitHash: options?.expectedCommitHash });
 	if (result.type !== 'extract') throw new Error('Unexpected worker response');
 	return result.files;
 }
 
 /** Repackage mod zip off the main thread. */
-export async function repackageModZipAsync(zipBuffer: ArrayBuffer): Promise<Uint8Array> {
-	const result = await call('repackage', zipBuffer);
+export async function repackageModZipAsync(zipBuffer: ArrayBuffer, options?: ExtractOptions): Promise<Uint8Array> {
+	const result = await call('repackage', zipBuffer, { expectedCommitHash: options?.expectedCommitHash });
 	if (result.type !== 'repackage') throw new Error('Unexpected worker response');
 	return result.cleanZip;
 }

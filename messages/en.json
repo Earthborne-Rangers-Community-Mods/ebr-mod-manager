@@ -29,6 +29,7 @@
   "error_vault_safety": "That folder isn't empty. Choose an empty folder or an existing mod.",
   "error_vault_removed": "The mod folder was deleted. Tap Install to choose a new one.",
   "error_extraction_security": "The mod contains unsupported content and cannot be installed.",
+  "error_hash_mismatch": "The downloaded mod does not match the expected version. Try again or report this mod.",
   "writing_vault": "Installing...",
   "writing_vault_progress": "Installing... ({written}/{total})",
   "extracting_mod": "Processing...",
