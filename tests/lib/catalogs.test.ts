@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCampaignDisplayName, resolveProductDisplayName, KNOWN_PRODUCT_IDS } from '$lib/catalogs.js';
+import {
+	resolveCampaignDisplayName,
+	resolveProductDisplayName,
+	resolveModTypeName,
+	resolveModTypeDescription,
+	KNOWN_PRODUCT_IDS,
+} from '$lib/catalogs.js';
 import { parseRegistry } from '$lib/registry.js';
 
 // --- resolveCampaignDisplayName ---
@@ -73,6 +79,66 @@ describe('resolveProductDisplayName', () => {
 
 	it('returns the raw slug for unknown products', () => {
 		expect(resolveProductDisplayName('some-unknown-product')).toBe('some-unknown-product');
+	});
+});
+
+// --- resolveModTypeDescription ---
+
+describe('resolveModTypeDescription', () => {
+	const KNOWN_TYPES = [
+		'campaign',
+		'enhancement',
+		'one-day-mission',
+		'expansion',
+		'collection',
+		'theme',
+	];
+
+	it('returns a non-empty i18n description for every known mod type', () => {
+		for (const type of KNOWN_TYPES) {
+			const desc = resolveModTypeDescription(type);
+			expect(desc, type).toBeTruthy();
+			expect(desc, type).not.toBe(type);
+		}
+	});
+
+	it('returns distinct descriptions per type', () => {
+		const descriptions = KNOWN_TYPES.map((t) => resolveModTypeDescription(t));
+		expect(new Set(descriptions).size).toBe(KNOWN_TYPES.length);
+	});
+
+	it('returns an empty string for an unknown type so callers can skip rendering', () => {
+		expect(resolveModTypeDescription('not-a-type')).toBe('');
+	});
+});
+
+// --- resolveModTypeName ---
+
+describe('resolveModTypeName', () => {
+	const KNOWN_TYPES = [
+		'campaign',
+		'enhancement',
+		'one-day-mission',
+		'expansion',
+		'collection',
+		'theme',
+	];
+
+	it('returns a player-facing label for every known mod type', () => {
+		for (const type of KNOWN_TYPES) {
+			const name = resolveModTypeName(type);
+			expect(name, type).toBeTruthy();
+			expect(name, type).not.toBe(type);
+		}
+	});
+
+	it('gives the hyphenated one-day-mission slug a properly cased label', () => {
+		// CSS capitalize would render "One-day-mission"; the i18n label fixes this.
+		expect(resolveModTypeName('one-day-mission')).toBe('One-Day Mission');
+	});
+
+	it('falls back to the raw slug for an unknown type', () => {
+		expect(resolveModTypeName('not-a-type')).toBe('not-a-type');
 	});
 });
 

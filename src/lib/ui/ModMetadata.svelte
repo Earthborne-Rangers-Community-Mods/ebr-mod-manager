@@ -1,6 +1,11 @@
 <script lang="ts">
 	import * as m from '$lib/paraglide/messages.js';
-	import { resolveCampaignDisplayName, resolveProductDisplayName } from '$lib/catalogs.js';
+	import {
+		resolveCampaignDisplayName,
+		resolveProductDisplayName,
+		resolveModTypeName,
+		resolveModTypeDescription,
+	} from '$lib/catalogs.js';
 	import type { ModDetail } from '$lib/registry.js';
 
 	interface Props {
@@ -8,6 +13,9 @@
 	}
 
 	let { mod }: Props = $props();
+
+	const typeName = $derived(resolveModTypeName(mod.type));
+	const typeDescription = $derived(resolveModTypeDescription(mod.type));
 </script>
 
 <div class="metadata">
@@ -15,7 +23,12 @@
 		<h3>{m.mod_detail_at_a_glance()}</h3>
 		<dl class="facts">
 			<dt>{m.mod_detail_type()}</dt>
-			<dd class="capitalize">{mod.type}</dd>
+			<dd class="type-fact">
+				<span>{typeName}</span>
+				{#if typeDescription}
+					<span class="type-desc">{typeDescription}</span>
+				{/if}
+			</dd>
 			<dt>{m.mod_detail_version_label()}</dt>
 			<dd>{mod.latestVersion}</dd>
 			{#if mod.updatedAt}
@@ -138,8 +151,15 @@
 		color: var(--color-text);
 	}
 
-	.facts .capitalize {
-		text-transform: capitalize;
+	.type-fact {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.type-desc {
+		color: var(--color-text-muted);
+		line-height: var(--line-height-normal);
 	}
 
 	.safety-safe {

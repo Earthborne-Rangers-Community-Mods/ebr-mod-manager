@@ -9,7 +9,8 @@
 		setOwnedProducts,
 		ownsAllRequiredProducts,
 	} from '$lib/owned-products.js';
-	import { KNOWN_PRODUCT_IDS, resolveProductDisplayName } from '$lib/catalogs.js';
+	import ModTypeFilter from '$lib/ui/ModTypeFilter.svelte';
+	import OwnedProductsFilter from '$lib/ui/OwnedProductsFilter.svelte';
 	import {
 		getInstallMethod,
 		changeVaultTarget,
@@ -21,26 +22,17 @@
 	let loading = $state(true);
 	let error = $state('');
 	let searchQuery = $state('');
-	let activeTypeFilter = $state<ModType | 'all'>('all');
+	let typeFilterOn = $state(false);
+	let selectedTypes = $state<Set<ModType>>(new Set());
 	let vaultFolderName = $state<string | null>(null);
 	let ledger = $state<DownloadLedger>({});
 	let compatibleOnly = $state(false);
 	let ownedProducts = $state<Set<string> | null>(null);
 
-	const TYPE_FILTERS: { value: ModType | 'all'; label: () => string }[] = [
-		{ value: 'all', label: m.filter_all },
-		{ value: 'enhancement', label: m.filter_enhancement },
-		{ value: 'expansion', label: m.filter_expansion },
-		{ value: 'one-day-mission', label: m.filter_one_day_mission },
-		{ value: 'campaign', label: m.filter_campaign },
-		{ value: 'collection', label: m.filter_collection },
-		{ value: 'theme', label: m.filter_theme },
-	];
-
 	const filteredMods = $derived.by(() => {
 		let result = mods;
-		if (activeTypeFilter !== 'all') {
-			result = result.filter((mod) => mod.type === activeTypeFilter);
+		if (typeFilterOn && selectedTypes.size > 0) {
+			result = result.filter((mod) => selectedTypes.has(mod.type));
 		}
 		if (searchQuery.trim()) {
 			const q = searchQuery.toLowerCase();
@@ -135,54 +127,47 @@
 			class="search-input"
 		/>
 
-		<div class="type-filters" role="group" aria-label="Filter by mod type">
-			{#each TYPE_FILTERS as filter}
-				<button
-					class="btn-chip"
-					class:active={activeTypeFilter === filter.value}
-					aria-pressed={activeTypeFilter === filter.value}
-					onclick={() => (activeTypeFilter = filter.value)}
-				>
-					{filter.label()}
-				</button>
-			{/each}
-		</div>
-
-		<div class="filter-bar">
+		<div class="filter-toggles">
+			<span class="filter-toggles-label">{m.filters_label()}</span>
+			<button
+				class="btn-chip"
+				class:active={typeFilterOn}
+				aria-pressed={typeFilterOn}
+				aria-expanded={typeFilterOn}
+				aria-controls="mod-types-section"
+				onclick={() => (typeFilterOn = !typeFilterOn)}
+			>
+				{m.filter_mod_types()}
+			</button>
 			<button
 				class="btn-chip"
 				class:active={compatibleOnly}
 				aria-pressed={compatibleOnly}
 				aria-expanded={compatibleOnly}
-				aria-controls="filters-panel"
+				aria-controls="owned-products-section"
 				onclick={() => (compatibleOnly = !compatibleOnly)}
 			>
 				{m.filter_compatible_only()}
 			</button>
 		</div>
 
-		{#if compatibleOnly}
+		{#if typeFilterOn || compatibleOnly}
 			<div
 				class="filters-panel"
-				id="filters-panel"
 				role="region"
-				aria-label={m.owned_products_heading()}
+				aria-label={m.filters_region_label()}
 			>
-				<fieldset class="owned-products">
-					<legend>{m.owned_products_heading()}</legend>
-					<div class="owned-products-list">
-						{#each KNOWN_PRODUCT_IDS as productId}
-							<label class="product-option">
-								<input
-									type="checkbox"
-									checked={ownedProducts?.has(productId) ?? false}
-									onchange={(e) => toggleOwnedProduct(productId, e.currentTarget.checked)}
-								/>
-								{resolveProductDisplayName(productId)}
-							</label>
-						{/each}
-					</div>
-				</fieldset>
+				{#if typeFilterOn}
+					<ModTypeFilter id="mod-types-section" bind:selectedTypes />
+				{/if}
+
+				{#if compatibleOnly}
+					<OwnedProductsFilter
+						id="owned-products-section"
+						{ownedProducts}
+						onToggle={toggleOwnedProduct}
+					/>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -280,16 +265,18 @@
 		border-color: var(--color-primary);
 	}
 
-	.type-filters {
+	.filter-toggles {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: center;
 		gap: var(--spacing-xs);
 	}
 
-	.filter-bar {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--spacing-xs);
+	.filter-toggles-label {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--color-text-muted);
+		margin-right: var(--spacing-xs);
 	}
 
 	.filters-panel {
@@ -300,42 +287,6 @@
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius);
 		background: var(--color-surface);
-	}
-
-	.product-option {
-		display: flex;
-		align-items: center;
-		gap: var(--spacing-sm);
-		font-size: var(--font-size-sm);
-		cursor: pointer;
-	}
-
-	.product-option input {
-		width: 1.1rem;
-		height: 1.1rem;
-		flex-shrink: 0;
-		accent-color: var(--color-primary);
-	}
-
-	.owned-products {
-		border: none;
-		margin: 0;
-		padding: 0;
-		min-width: 0;
-	}
-
-	.owned-products legend {
-		font-family: var(--font-display);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		padding: 0;
-		margin-bottom: var(--spacing-xs);
-	}
-
-	.owned-products-list {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-		gap: var(--spacing-xs) var(--spacing-md);
 	}
 
 	.mod-list {
