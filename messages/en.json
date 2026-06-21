@@ -65,6 +65,8 @@
   "mod_detail_version_label": "Version",
   "mod_detail_updated_label": "Updated",
   "mod_detail_mid_campaign_safety": "Mid-campaign",
+  "mod_update_available_badge": "Updated",
+  "mod_update_explainer": "Updated to v{latest} (last installed v{installed})",
   "campaign_lure_of_the_valley": "Lure of the Valley",
   "campaign_legacy_of_the_ancestors": "Legacy of the Ancestors",
   "campaign_spire_in_bloom": "Spire in Bloom",

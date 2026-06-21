@@ -3,6 +3,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { fetchRegistry, type BrowseMod, type ModType } from '$lib/registry.js';
 	import { RegistryFetchError } from '$lib/errors.js';
+	import { getLedger, entryFor, compareVersions, type DownloadLedger } from '$lib/ledger.js';
 	import {
 		getInstallMethod,
 		changeVaultTarget,
@@ -16,6 +17,7 @@
 	let searchQuery = $state('');
 	let activeTypeFilter = $state<ModType | 'all'>('all');
 	let vaultFolderName = $state<string | null>(null);
+	let ledger = $state<DownloadLedger>({});
 
 	const TYPE_FILTERS: { value: ModType | 'all'; label: () => string }[] = [
 		{ value: 'all', label: m.filter_all },
@@ -45,6 +47,12 @@
 		return result;
 	});
 
+	/** A previously-downloaded mod shows a badge when the registry is ahead of the ledger. */
+	function modHasUpdate(mod: BrowseMod): boolean {
+		const entry = entryFor(ledger, mod.id);
+		return entry ? compareVersions(mod.latestVersion, entry.version) > 0 : false;
+	}
+
 	async function loadRegistry() {
 		loading = true;
 		error = '';
@@ -65,6 +73,7 @@
 
 	$effect(() => {
 		loadRegistry();
+		ledger = getLedger();
 		getStoredVaultFolderName().then((name) => {
 			vaultFolderName = name;
 		});
@@ -137,6 +146,9 @@
 							<p class="mod-description">{mod.description}</p>
 						</div>
 						<div class="mod-aside">
+							{#if modHasUpdate(mod)}
+								<span class="badge badge-update">{m.mod_update_available_badge()}</span>
+							{/if}
 							<span class="badge">{mod.type}</span>
 						</div>
 					</a>

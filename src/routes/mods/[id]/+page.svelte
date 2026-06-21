@@ -10,6 +10,7 @@
 	import { ModDetailFetchError, isNetworkError } from '$lib/errors.js';
 	import { renderMarkdown } from '$lib/markdown.js';
 	import { getToken } from '$lib/devsettings.js';
+	import { getLedgerEntry, compareVersions } from '$lib/ledger.js';
 	import InstallButton from '$lib/ui/InstallButton.svelte';
 	import ModDescription from '$lib/ui/ModDescription.svelte';
 	import ModMetadata from '$lib/ui/ModMetadata.svelte';
@@ -19,6 +20,23 @@
 	let loading = $state(true);
 	let error = $state('');
 	let descriptionHtml = $state<string | null>(null);
+	let installedVersion = $state<string | null>(null);
+
+	/** The version the user last downloaded, when the registry is now ahead of it. */
+	const updateFromVersion = $derived.by(() => {
+		if (!mod || installedVersion === null) return null;
+		return compareVersions(mod.latestVersion, installedVersion) > 0 ? installedVersion : null;
+	});
+
+	/** Read the ledger entry for the current mod into reactive state. */
+	function refreshInstalledVersion(modId: string) {
+		installedVersion = getLedgerEntry(modId)?.version ?? null;
+	}
+
+	/** After a successful install, re-read the ledger so the explainer clears. */
+	function handleInstalled() {
+		if (mod) refreshInstalledVersion(mod.id);
+	}
 
 	async function loadMod(modId: string) {
 		loading = true;
@@ -28,6 +46,7 @@
 
 		try {
 			mod = await fetchModDetail(modId);
+			refreshInstalledVersion(modId);
 		} catch (err) {
 			console.error(`Failed to load mod '${modId}':`, err);
 			if (err instanceof ModDetailFetchError && err.httpStatus === 404) {
@@ -85,7 +104,7 @@
 					<h1 class="mod-name">
 						{#if mod.icon}<span class="mod-icon" aria-hidden="true">{mod.icon}</span>{/if}{mod.name}
 					</h1>
-					<InstallButton {mod} />
+					<InstallButton {mod} oninstalled={handleInstalled} />
 				</div>
 				<p class="mod-author">
 					{mod.author ? m.mod_detail_author({ author: mod.author }) : m.mod_detail_unknown_author()}
@@ -98,6 +117,11 @@
 				{/if}
 				<!-- Short description from the manifest. -->
 				<p class="mod-description">{mod.description}</p>
+				{#if updateFromVersion}
+					<p class="update-notice">
+						{m.mod_update_explainer({ latest: mod.latestVersion, installed: updateFromVersion })}
+					</p>
+				{/if}
 			</div>
 		</div>
 
@@ -185,6 +209,16 @@
 		font-size: var(--font-size-base);
 		line-height: 1.6;
 		margin-top: var(--spacing-sm);
+	}
+
+	.update-notice {
+		margin-top: var(--spacing-sm);
+		padding: var(--spacing-sm) var(--spacing-md);
+		border-radius: var(--radius);
+		background: var(--color-surface);
+		border: 1px solid var(--color-primary);
+		color: var(--color-text);
+		font-size: var(--font-size-sm);
 	}
 
 	/* --- About section --- */

@@ -290,6 +290,13 @@ button:disabled {
 	color: var(--color-text);
 }
 
+.badge-update {
+	background: var(--color-primary);
+	color: var(--color-primary-text);
+	text-transform: none;
+	font-weight: 600;
+}
+
 /* --- Status messages --- */
 
 .status-message {

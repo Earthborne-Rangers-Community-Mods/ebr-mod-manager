@@ -21,13 +21,15 @@
 		isNetworkError,
 	} from '$lib/errors.js';
 	import { getToken } from '$lib/devsettings.js';
+	import { recordDownload } from '$lib/ledger.js';
 	import type { ModDetail } from '$lib/registry.js';
 
 	interface Props {
 		mod: ModDetail;
+		oninstalled?: () => void;
 	}
 
-	let { mod }: Props = $props();
+	let { mod, oninstalled }: Props = $props();
 
 	const method = getInstallMethod();
 
@@ -93,6 +95,8 @@
 					version: mod.latestVersion,
 					commitHash: mod.commitHash,
 				});
+				recordDownload(mod.id, mod.latestVersion);
+				oninstalled?.();
 
 				state = { step: 'complete' };
 			} else {
@@ -111,6 +115,8 @@
 				a.download = `${mod.id}.zip`;
 				a.click();
 				URL.revokeObjectURL(url);
+				recordDownload(mod.id, mod.latestVersion);
+				oninstalled?.();
 				state = { step: 'complete' };
 			}
 		} catch (err) {
