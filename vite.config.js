@@ -1,5 +1,5 @@
 import { paraglideVitePlugin } from '@inlang/paraglide-js'
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import { sveltekit } from "@sveltejs/kit/vite";
 import path from "node:path";
 

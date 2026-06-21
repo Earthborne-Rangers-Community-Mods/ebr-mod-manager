@@ -37,7 +37,11 @@ const mockPlugin = vi.hoisted(() => ({
 	listVaultContents: vi.fn(async () => ({ entries: [] as Array<{ name: string; isDirectory: boolean }> })),
 	writeFile: vi.fn(async () => undefined),
 	clearVaultContents: vi.fn(async () => undefined),
-	addListener: vi.fn(async () => ({ remove: vi.fn(async () => undefined) })),
+	addListener: vi.fn(
+		async (_event: string, _listener: (...args: unknown[]) => void) => ({
+			remove: vi.fn(async () => undefined),
+		}),
+	),
 }));
 
 vi.mock('$lib/ebr-vault-plugin.js', () => ({

@@ -37,6 +37,15 @@ const PRODUCT_MESSAGES: Record<string, () => string> = {
 	'incandescent-sky': m.product_incandescent_sky,
 };
 
+/**
+ * Known official product IDs, in catalog order. Derived from PRODUCT_MESSAGES so
+ * the two never drift. PRODUCT_MESSAGES mirrors OFFICIAL_PRODUCTS in ebr-mod-tools
+ * src/core/catalogs.js; keep that list in sync when Earthborne Games releases new
+ * content. Drives the product-ownership checkboxes in the registry browser's
+ * filters menu.
+ */
+export const KNOWN_PRODUCT_IDS: readonly string[] = Object.keys(PRODUCT_MESSAGES);
+
 export function resolveCampaignDisplayName(id: string): string {
 	return CAMPAIGN_MESSAGES[id]?.() ?? getRegistryCampaignName(id);
 }

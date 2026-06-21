@@ -55,6 +55,11 @@ function validRegistryData(mods: unknown[] = [validMod()]) {
 	return { schemaVersion: 1, mods };
 }
 
+/** Cast a typed fixture to a mutable bag so negative tests can delete or overwrite fields. */
+function asRecord(mod: BrowseMod): Record<string, unknown> {
+	return mod as unknown as Record<string, unknown>;
+}
+
 // --- parseRegistry ---
 
 describe('parseRegistry', () => {
@@ -73,16 +78,16 @@ describe('parseRegistry', () => {
 
 	it('parses mods with optional fields missing', () => {
 		const mod = validMod();
-		delete (mod as Record<string, unknown>).tags;
-		delete (mod as Record<string, unknown>).icon;
-		delete (mod as Record<string, unknown>).author;
-		delete (mod as Record<string, unknown>).description;
-		delete (mod as Record<string, unknown>).language;
-		delete (mod as Record<string, unknown>).latestVersion;
-		delete (mod as Record<string, unknown>).updatedAt;
-		delete (mod as Record<string, unknown>).campaigns;
-		delete (mod as Record<string, unknown>).requiredProducts;
-		delete (mod as Record<string, unknown>).safeToAddMidCampaign;
+		delete asRecord(mod).tags;
+		delete asRecord(mod).icon;
+		delete asRecord(mod).author;
+		delete asRecord(mod).description;
+		delete asRecord(mod).language;
+		delete asRecord(mod).latestVersion;
+		delete asRecord(mod).updatedAt;
+		delete asRecord(mod).campaigns;
+		delete asRecord(mod).requiredProducts;
+		delete asRecord(mod).safeToAddMidCampaign;
 		const result = parseRegistry(validRegistryData([mod]));
 		expect(result.mods).toHaveLength(1);
 		const parsed = result.mods[0];
@@ -157,14 +162,14 @@ describe('parseRegistry', () => {
 	for (const field of requiredStringFields) {
 		it(`skips a mod missing '${field}'`, () => {
 			const mod = validMod();
-			delete (mod as Record<string, unknown>)[field];
+			delete asRecord(mod)[field];
 			const result = parseRegistry(validRegistryData([mod]));
 			expect(result.mods).toHaveLength(0);
 		});
 
 		it(`skips a mod where '${field}' is not a string`, () => {
 			const mod = validMod();
-			(mod as Record<string, unknown>)[field] = 42;
+			asRecord(mod)[field] = 42;
 			const result = parseRegistry(validRegistryData([mod]));
 			expect(result.mods).toHaveLength(0);
 		});
@@ -173,56 +178,56 @@ describe('parseRegistry', () => {
 	// These fields degrade gracefully with defaults
 	it('defaults author to empty string when missing', () => {
 		const mod = validMod();
-		delete (mod as Record<string, unknown>).author;
+		delete asRecord(mod).author;
 		const result = parseRegistry(validRegistryData([mod]));
 		expect(result.mods[0].author).toBe('');
 	});
 
 	it('defaults description to empty string when missing', () => {
 		const mod = validMod();
-		delete (mod as Record<string, unknown>).description;
+		delete asRecord(mod).description;
 		const result = parseRegistry(validRegistryData([mod]));
 		expect(result.mods[0].description).toBe('');
 	});
 
 	it('defaults language to "en" when missing', () => {
 		const mod = validMod();
-		delete (mod as Record<string, unknown>).language;
+		delete asRecord(mod).language;
 		const result = parseRegistry(validRegistryData([mod]));
 		expect(result.mods[0].language).toBe('en');
 	});
 
 	it('defaults campaigns to empty array when missing', () => {
 		const mod = validMod();
-		delete (mod as Record<string, unknown>).campaigns;
+		delete asRecord(mod).campaigns;
 		const result = parseRegistry(validRegistryData([mod]));
 		expect(result.mods[0].campaigns).toEqual([]);
 	});
 
 	it('defaults campaigns to empty array when not an array', () => {
 		const mod = validMod();
-		(mod as Record<string, unknown>).campaigns = 'not-array';
+		asRecord(mod).campaigns = 'not-array';
 		const result = parseRegistry(validRegistryData([mod]));
 		expect(result.mods[0].campaigns).toEqual([]);
 	});
 
 	it('defaults requiredProducts to empty array when missing', () => {
 		const mod = validMod();
-		delete (mod as Record<string, unknown>).requiredProducts;
+		delete asRecord(mod).requiredProducts;
 		const result = parseRegistry(validRegistryData([mod]));
 		expect(result.mods[0].requiredProducts).toEqual([]);
 	});
 
 	it('defaults safeToAddMidCampaign to false when missing', () => {
 		const mod = validMod();
-		delete (mod as Record<string, unknown>).safeToAddMidCampaign;
+		delete asRecord(mod).safeToAddMidCampaign;
 		const result = parseRegistry(validRegistryData([mod]));
 		expect(result.mods[0].safeToAddMidCampaign).toBe(false);
 	});
 
 	it('defaults safeToAddMidCampaign to false when not boolean', () => {
 		const mod = validMod();
-		(mod as Record<string, unknown>).safeToAddMidCampaign = 'true';
+		asRecord(mod).safeToAddMidCampaign = 'true';
 		const result = parseRegistry(validRegistryData([mod]));
 		expect(result.mods[0].safeToAddMidCampaign).toBe(false);
 	});

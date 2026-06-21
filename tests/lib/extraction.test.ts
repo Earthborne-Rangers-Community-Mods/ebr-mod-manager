@@ -20,7 +20,7 @@ function makeZip(files: Record<string, string | Uint8Array>): ArrayBuffer {
 			typeof content === 'string' ? new TextEncoder().encode(content) : content;
 	}
 	const zipped = zipSync(entries);
-	return zipped.buffer;
+	return zipped.buffer as ArrayBuffer;
 }
 
 // --- detectTopLevelPrefix ---

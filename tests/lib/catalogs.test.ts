@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCampaignDisplayName, resolveProductDisplayName } from '$lib/catalogs.js';
+import { resolveCampaignDisplayName, resolveProductDisplayName, KNOWN_PRODUCT_IDS } from '$lib/catalogs.js';
 import { parseRegistry } from '$lib/registry.js';
 
 // --- resolveCampaignDisplayName ---
@@ -73,5 +73,27 @@ describe('resolveProductDisplayName', () => {
 
 	it('returns the raw slug for unknown products', () => {
 		expect(resolveProductDisplayName('some-unknown-product')).toBe('some-unknown-product');
+	});
+});
+
+// --- KNOWN_PRODUCT_IDS ---
+// This list mirrors OFFICIAL_PRODUCTS in ebr-mod-tools and drives the
+// product-ownership checkboxes. This assertion is the sync canary: when a
+// product is added to OFFICIAL_PRODUCTS, KNOWN_PRODUCT_IDS and this test
+// must change in the same diff.
+
+describe('KNOWN_PRODUCT_IDS', () => {
+	it('contains exactly the expected official product ids in catalog order', () => {
+		expect([...KNOWN_PRODUCT_IDS]).toEqual([
+			'core-set',
+			'legacy-of-the-ancestors',
+			'spire-in-bloom',
+			'shadow-of-the-storm',
+			'moments-in-the-valley',
+			'stewards-of-the-valley',
+			'moments-on-the-path',
+			'ranger-card-doubler',
+			'incandescent-sky',
+		]);
 	});
 });

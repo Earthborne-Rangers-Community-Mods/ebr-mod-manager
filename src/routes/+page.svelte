@@ -5,6 +5,12 @@
 	import { RegistryFetchError } from '$lib/errors.js';
 	import { getLedger, entryFor, compareVersions, type DownloadLedger } from '$lib/ledger.js';
 	import {
+		getOwnedProducts,
+		setOwnedProducts,
+		ownsAllRequiredProducts,
+	} from '$lib/owned-products.js';
+	import { KNOWN_PRODUCT_IDS, resolveProductDisplayName } from '$lib/catalogs.js';
+	import {
 		getInstallMethod,
 		changeVaultTarget,
 		getVaultFolderName,
@@ -18,6 +24,8 @@
 	let activeTypeFilter = $state<ModType | 'all'>('all');
 	let vaultFolderName = $state<string | null>(null);
 	let ledger = $state<DownloadLedger>({});
+	let compatibleOnly = $state(false);
+	let ownedProducts = $state<Set<string> | null>(null);
 
 	const TYPE_FILTERS: { value: ModType | 'all'; label: () => string }[] = [
 		{ value: 'all', label: m.filter_all },
@@ -42,6 +50,11 @@
 					mod.author.toLowerCase().includes(q) ||
 					mod.description.toLowerCase().includes(q) ||
 					mod.tags?.some((t) => t.includes(q)),
+			);
+		}
+		if (compatibleOnly) {
+			result = result.filter((mod) =>
+				ownsAllRequiredProducts(mod.requiredProducts, ownedProducts),
 			);
 		}
 		return result;
@@ -74,10 +87,22 @@
 	$effect(() => {
 		loadRegistry();
 		ledger = getLedger();
+		ownedProducts = getOwnedProducts();
 		getStoredVaultFolderName().then((name) => {
 			vaultFolderName = name;
 		});
 	});
+
+	function toggleOwnedProduct(id: string, owned: boolean) {
+		const next = new Set(ownedProducts ?? []);
+		if (owned) {
+			next.add(id);
+		} else {
+			next.delete(id);
+		}
+		ownedProducts = next;
+		setOwnedProducts(next);
+	}
 
 	async function handleChangeFolder() {
 		try {
@@ -122,6 +147,44 @@
 				</button>
 			{/each}
 		</div>
+
+		<div class="filter-bar">
+			<button
+				class="btn-chip"
+				class:active={compatibleOnly}
+				aria-pressed={compatibleOnly}
+				aria-expanded={compatibleOnly}
+				aria-controls="filters-panel"
+				onclick={() => (compatibleOnly = !compatibleOnly)}
+			>
+				{m.filter_compatible_only()}
+			</button>
+		</div>
+
+		{#if compatibleOnly}
+			<div
+				class="filters-panel"
+				id="filters-panel"
+				role="region"
+				aria-label={m.owned_products_heading()}
+			>
+				<fieldset class="owned-products">
+					<legend>{m.owned_products_heading()}</legend>
+					<div class="owned-products-list">
+						{#each KNOWN_PRODUCT_IDS as productId}
+							<label class="product-option">
+								<input
+									type="checkbox"
+									checked={ownedProducts?.has(productId) ?? false}
+									onchange={(e) => toggleOwnedProduct(productId, e.currentTarget.checked)}
+								/>
+								{resolveProductDisplayName(productId)}
+							</label>
+						{/each}
+					</div>
+				</fieldset>
+			</div>
+		{/if}
 	</div>
 
 	{#if loading}
@@ -137,7 +200,7 @@
 		<ul class="mod-list">
 			{#each filteredMods as mod (mod.id)}
 				<li class="mod-card">
-					<a href="{resolve('/mods/' + mod.id)}" class="mod-card-link">
+					<a href="{resolve('/mods/[id]', { id: mod.id })}" class="mod-card-link">
 						<div class="mod-info">
 							<h2 class="mod-name">
 								{#if mod.icon}<span class="mod-icon" aria-hidden="true">{mod.icon}</span>{/if}{mod.name}
@@ -221,6 +284,58 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--spacing-xs);
+	}
+
+	.filter-bar {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--spacing-xs);
+	}
+
+	.filters-panel {
+		display: flex;
+		flex-direction: column;
+		gap: var(--spacing-md);
+		padding: var(--spacing-md);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius);
+		background: var(--color-surface);
+	}
+
+	.product-option {
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-sm);
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+	}
+
+	.product-option input {
+		width: 1.1rem;
+		height: 1.1rem;
+		flex-shrink: 0;
+		accent-color: var(--color-primary);
+	}
+
+	.owned-products {
+		border: none;
+		margin: 0;
+		padding: 0;
+		min-width: 0;
+	}
+
+	.owned-products legend {
+		font-family: var(--font-display);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		padding: 0;
+		margin-bottom: var(--spacing-xs);
+	}
+
+	.owned-products-list {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+		gap: var(--spacing-xs) var(--spacing-md);
 	}
 
 	.mod-list {

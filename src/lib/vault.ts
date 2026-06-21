@@ -318,7 +318,9 @@ export async function writeVaultBrowser(
 		const parent = await getDir(dirPath);
 		const fileHandle = await parent.getFileHandle(fileName, { create: true });
 		const writable = await fileHandle.createWritable();
-		await writable.write(file.data);
+		// fflate-extracted data is always ArrayBuffer-backed (never SharedArrayBuffer),
+		// so this narrowing cast to the typed-array buffer bound is safe.
+		await writable.write(file.data as Uint8Array<ArrayBuffer>);
 		await writable.close();
 
 		written++;

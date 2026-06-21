@@ -43,8 +43,10 @@
 		.description-content pre { overflow-x: auto; }
 	`;
 
-	onMount(async () => {
-		baseCss = await getBaseContentCss();
+	onMount(() => {
+		getBaseContentCss().then((css) => {
+			baseCss = css;
+		});
 
 		// Keep theme in sync when the toggle changes data-theme on <html>.
 		const observer = new MutationObserver(() => {

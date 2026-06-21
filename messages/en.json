@@ -12,6 +12,8 @@
   "filter_campaign": "Campaigns",
   "filter_collection": "Collections",
   "filter_theme": "Themes",
+  "filter_compatible_only": "My products only",
+  "owned_products_heading": "Products I own",
   "mod_detail_author": "By {author}",
   "mod_detail_unknown_author": "Unknown author",
   "mod_detail_safe_mid_campaign": "Safe",
