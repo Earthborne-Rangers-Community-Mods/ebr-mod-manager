@@ -1,17 +1,19 @@
+import { getStorageItem, setStorageItem, removeStorageItem } from '$lib/safe-storage.js';
+
 const TOKEN_KEY = 'ebr_github_token';
 const BASE_CONTENT_TOKEN_KEY = 'ebr_github_base_content_token';
 const DEV_PANEL_KEY = 'ebr_dev_panel';
 
 export function getToken(): string | null {
-	return localStorage.getItem(TOKEN_KEY);
+	return getStorageItem(TOKEN_KEY);
 }
 
 export function setToken(token: string): void {
-	localStorage.setItem(TOKEN_KEY, token);
+	setStorageItem(TOKEN_KEY, token);
 }
 
 export function clearToken(): void {
-	localStorage.removeItem(TOKEN_KEY);
+	removeStorageItem(TOKEN_KEY);
 }
 
 /**
@@ -21,25 +23,25 @@ export function clearToken(): void {
  * organization-level approval / SSO authorization.
  */
 export function getBaseContentToken(): string | null {
-	return localStorage.getItem(BASE_CONTENT_TOKEN_KEY);
+	return getStorageItem(BASE_CONTENT_TOKEN_KEY);
 }
 
 export function setBaseContentToken(token: string): void {
-	localStorage.setItem(BASE_CONTENT_TOKEN_KEY, token);
+	setStorageItem(BASE_CONTENT_TOKEN_KEY, token);
 }
 
 export function clearBaseContentToken(): void {
-	localStorage.removeItem(BASE_CONTENT_TOKEN_KEY);
+	removeStorageItem(BASE_CONTENT_TOKEN_KEY);
 }
 
 export function isDevPanelOpen(): boolean {
-	return localStorage.getItem(DEV_PANEL_KEY) === 'true';
+	return getStorageItem(DEV_PANEL_KEY) === 'true';
 }
 
 export function setDevPanelOpen(open: boolean): void {
 	if (open) {
-		localStorage.setItem(DEV_PANEL_KEY, 'true');
+		setStorageItem(DEV_PANEL_KEY, 'true');
 	} else {
-		localStorage.removeItem(DEV_PANEL_KEY);
+		removeStorageItem(DEV_PANEL_KEY);
 	}
 }

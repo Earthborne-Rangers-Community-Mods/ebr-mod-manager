@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import * as m from '$lib/paraglide/messages.js';
 	import { asset } from '$app/paths';
 	import {
@@ -13,16 +14,65 @@
 
 	let dialogEl = $state<HTMLDivElement | null>(null);
 
+	// The control that had focus when the modal opened. Captured at init (while
+	// the trigger is still focused, before focus moves into the dialog) so focus
+	// can be returned there on close -- keyboard and screen-reader users are not
+	// dropped at the top of the page.
+	const previouslyFocused =
+		typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
+
 	// Move focus into the dialog when it mounts so keyboard and screen-reader
 	// users land on the explainer rather than the page behind it.
 	$effect(() => {
 		dialogEl?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
 	});
 
+	// Restore focus to the triggering control when the modal closes.
+	onDestroy(() => {
+		previouslyFocused?.focus?.();
+	});
+
+	// Focusable children of the dialog, in DOM order, for the Tab trap.
+	function focusableItems(): HTMLElement[] {
+		if (!dialogEl) return [];
+		return Array.from(
+			dialogEl.querySelectorAll<HTMLElement>(
+				'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+			)
+		);
+	}
+
+	// Keep Tab and Shift+Tab cycling within the dialog so focus cannot reach the
+	// page behind the open modal.
+	function trapTab(e: KeyboardEvent) {
+		const items = focusableItems();
+		if (items.length === 0) {
+			e.preventDefault();
+			return;
+		}
+		const first = items[0];
+		const last = items[items.length - 1];
+		const active = document.activeElement;
+		const outside = !dialogEl?.contains(active);
+		if (e.shiftKey) {
+			if (active === first || outside) {
+				e.preventDefault();
+				last.focus();
+			}
+		} else if (active === last || outside) {
+			e.preventDefault();
+			first.focus();
+		}
+	}
+
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
 			e.preventDefault();
 			dismissObsidianIntro();
+			return;
+		}
+		if (e.key === 'Tab') {
+			trapTab(e);
 		}
 	}
 

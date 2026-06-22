@@ -5,6 +5,8 @@
 // latestVersion -- and requires no folder read, so it works on every
 // platform including zip-download users who have no stored directory handle.
 
+import { getStorageItem, setStorageItem } from '$lib/safe-storage.js';
+
 const LEDGER_KEY = 'ebr-download-ledger';
 
 // Keys that, if used to index a plain object, mutate its prototype or shadow
@@ -27,13 +29,7 @@ export type DownloadLedger = Record<string, LedgerEntry>;
 
 /** Read the whole ledger. Returns an empty ledger on missing or corrupt data. */
 export function getLedger(): DownloadLedger {
-	if (typeof localStorage === 'undefined') return {};
-	let raw: string | null;
-	try {
-		raw = localStorage.getItem(LEDGER_KEY);
-	} catch {
-		return {};
-	}
+	const raw = getStorageItem(LEDGER_KEY);
 	if (!raw) return {};
 	let parsed: unknown;
 	try {
@@ -75,15 +71,11 @@ export function getLedgerEntry(modId: string): LedgerEntry | null {
  * Overwriting with the just-downloaded version is what clears an update badge.
  */
 export function recordDownload(modId: string, version: string): void {
-	if (typeof localStorage === 'undefined') return;
 	if (isReservedKey(modId)) return;
 	const ledger = getLedger();
 	ledger[modId] = { version, downloadedAt: new Date().toISOString() };
-	try {
-		localStorage.setItem(LEDGER_KEY, JSON.stringify(ledger));
-	} catch {
-		// Storage full or unavailable -- update awareness degrades silently.
-	}
+	// On failure (storage full or unavailable) update awareness degrades silently.
+	setStorageItem(LEDGER_KEY, JSON.stringify(ledger));
 }
 
 /**
