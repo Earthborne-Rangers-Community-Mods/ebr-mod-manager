@@ -22,6 +22,7 @@
 	} from '$lib/errors.js';
 	import { getToken } from '$lib/devsettings.js';
 	import { recordDownload } from '$lib/ledger.js';
+	import { requestObsidianIntro } from '$lib/obsidian-intro.js';
 	import type { ModDetail } from '$lib/registry.js';
 
 	interface Props {
@@ -42,7 +43,19 @@
 
 	let state = $state<InstallState>({ step: 'idle' });
 
-	async function handleDownload() {
+	// First tap shows the one-time Obsidian explainer; once seen (or after the
+	// user confirms it), runInstall proceeds. requestObsidianIntro runs the
+	// continuation synchronously when already seen, and the explainer's confirm
+	// button calls it within its own click handler -- both keep the folder picker
+	// inside a user gesture, which showDirectoryPicker requires.
+	function handleInstallClick() {
+		if (state.step === 'downloading' || state.step === 'writing') return;
+		requestObsidianIntro(() => {
+			void runInstall();
+		});
+	}
+
+	async function runInstall() {
 		if (state.step === 'downloading' || state.step === 'writing') return;
 		state = { step: 'downloading', progress: null };
 
@@ -171,13 +184,13 @@
 	{:else if state.step === 'complete'}
 		<span class="download-success">{method === 'zip-download' ? m.zip_download_complete() : m.vault_write_complete()}</span>
 	{:else}
-		<button class="install-button" onclick={handleDownload}>
+		<button class="install-button" onclick={handleInstallClick}>
 			{method === 'zip-download' ? m.download_zip_button() : m.install_button()}
 		</button>
 	{/if}
 	{#if state.step === 'error'}
 		<span class="download-error">{state.message}</span>
-		<button class="retry-button" onclick={handleDownload}>{m.retry()}</button>
+		<button class="retry-button" onclick={handleInstallClick}>{m.retry()}</button>
 	{/if}
 </div>
 
@@ -220,11 +233,15 @@
 		font-size: var(--font-size-sm);
 		color: var(--color-success);
 		font-weight: 500;
+		max-width: 16rem;
+		text-align: center;
 	}
 
 	.download-error {
 		font-size: var(--font-size-sm);
 		color: var(--color-error);
+		max-width: 16rem;
+		text-align: center;
 	}
 
 	.retry-button {

@@ -5,8 +5,10 @@
 	import DevPanel from '$lib/ui/DevPanel.svelte';
 	import ThemeToggle from '$lib/ui/ThemeToggle.svelte';
 	import ObsidianButton from '$lib/ui/ObsidianButton.svelte';
+	import ObsidianExplainer from '$lib/ui/ObsidianExplainer.svelte';
 	import DisclaimerFooter from '$lib/ui/DisclaimerFooter.svelte';
 	import { isDevPanelOpen, setDevPanelOpen } from '$lib/devsettings.js';
+	import { obsidianIntroOpen } from '$lib/obsidian-intro.js';
 	import { initTheme } from '$lib/theme.js';
 	import { Capacitor } from '@capacitor/core';
 	import { Browser } from '@capacitor/browser';
@@ -89,6 +91,10 @@
 </main>
 
 <DisclaimerFooter />
+
+{#if $obsidianIntroOpen}
+	<ObsidianExplainer />
+{/if}
 
 {#if showDevPanel}
 	<DevPanel onclose={toggleDevPanel} />

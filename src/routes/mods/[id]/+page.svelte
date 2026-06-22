@@ -11,6 +11,7 @@
 	import { renderMarkdown } from '$lib/markdown.js';
 	import { getToken } from '$lib/devsettings.js';
 	import { getLedgerEntry, compareVersions } from '$lib/ledger.js';
+	import { showObsidianIntro } from '$lib/obsidian-intro.js';
 	import InstallButton from '$lib/ui/InstallButton.svelte';
 	import ModDescription from '$lib/ui/ModDescription.svelte';
 	import ModMetadata from '$lib/ui/ModMetadata.svelte';
@@ -101,20 +102,33 @@
 		<div class="detail-header">
 			<div class="header-content">
 				<div class="title-row">
-					<h1 class="mod-name">
-						{#if mod.icon}<span class="mod-icon" aria-hidden="true">{mod.icon}</span>{/if}{mod.name}
-					</h1>
-					<InstallButton {mod} oninstalled={handleInstalled} />
+					<div class="title-block">
+						<h1 class="mod-name">
+							{#if mod.icon}<span class="mod-icon" aria-hidden="true">{mod.icon}</span>{/if}{mod.name}
+						</h1>
+						<p class="mod-author">
+							{mod.author ? m.mod_detail_author({ author: mod.author }) : m.mod_detail_unknown_author()}
+						</p>
+						{#if mod.authorDiscord}
+							<p class="discord-handle">
+								<span class="discord-logo" aria-label="Discord" role="img"></span>
+								{mod.authorDiscord}
+							</p>
+						{/if}
+					</div>
+					<div class="install-column">
+						<InstallButton {mod} oninstalled={handleInstalled} />
+						<div class="playable-label">
+							<span>{m.playable_in_obsidian()}</span>
+							<button
+								class="whats-that"
+								type="button"
+								onclick={showObsidianIntro}
+								aria-label={m.whats_that()}
+							>?</button>
+						</div>
+					</div>
 				</div>
-				<p class="mod-author">
-					{mod.author ? m.mod_detail_author({ author: mod.author }) : m.mod_detail_unknown_author()}
-				</p>
-				{#if mod.authorDiscord}
-					<p class="discord-handle">
-						<span class="discord-logo" aria-label="Discord" role="img"></span>
-						{mod.authorDiscord}
-					</p>
-				{/if}
 				<!-- Short description from the manifest. -->
 				<p class="mod-description">{mod.description}</p>
 				{#if updateFromVersion}
@@ -143,10 +157,6 @@
 </section>
 
 <style>
-	.mod-detail {
-		max-width: 720px;
-	}
-
 	/* --- Header --- */
 
 	.detail-header {
@@ -155,11 +165,15 @@
 
 	.title-row {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: space-between;
 		gap: var(--spacing-md);
 		margin-bottom: var(--spacing-xs);
 		flex-wrap: wrap;
+	}
+
+	.title-block {
+		flex: 1 1 auto;
 	}
 
 	.mod-icon {
@@ -179,6 +193,48 @@
 		font-size: var(--font-size-sm);
 		color: var(--color-text-muted);
 		margin-bottom: var(--spacing-xs);
+	}
+
+	.install-column {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--spacing-xs);
+	}
+
+	.playable-label {
+		display: flex;
+		align-items: center;
+		gap: 0.4em;
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.whats-that {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		box-sizing: border-box;
+		width: 1.15rem;
+		height: 1.15rem;
+		min-height: 0;
+		padding: 0;
+		flex: none;
+		border: 1px solid var(--color-border);
+		border-radius: 50%;
+		background: none;
+		color: var(--color-text-muted);
+		font-size: 0.7rem;
+		font-weight: 700;
+		line-height: 1;
+		cursor: pointer;
+		touch-action: manipulation;
+		transition: color var(--transition-fast), border-color var(--transition-fast);
+	}
+
+	.whats-that:hover {
+		color: var(--color-primary);
+		border-color: var(--color-primary);
 	}
 
 	.discord-handle {
