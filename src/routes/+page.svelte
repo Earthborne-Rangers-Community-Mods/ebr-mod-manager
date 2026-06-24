@@ -58,11 +58,11 @@
 		return entry ? compareVersions(mod.latestVersion, entry.version) > 0 : false;
 	}
 
-	async function loadRegistry() {
+	async function loadRegistry(forceRefresh = false) {
 		loading = true;
 		error = '';
 		try {
-			const registry = await fetchRegistry();
+			const registry = await fetchRegistry({ forceRefresh });
 			mods = registry.mods;
 		} catch (err) {
 			console.error('Registry fetch failed:', err);
@@ -110,6 +110,29 @@
 	<div class="page-header">
 		<h1>{m.browse_mods()}</h1>
 		<div class="header-actions">
+			<button
+				class="btn-secondary header-button refresh-button"
+				onclick={() => loadRegistry(true)}
+				disabled={loading}
+				aria-label={m.refresh_registry()}
+				title={m.refresh_registry()}
+			>
+				<svg
+					class="refresh-icon"
+					viewBox="0 0 24 24"
+					width="18"
+					height="18"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<path d="M21 12a9 9 0 1 1-2.64-6.36" />
+					<polyline points="21 3 21 9 15 9" />
+				</svg>
+			</button>
 			{#if getInstallMethod() === 'vault-write'}
 				{#if vaultFolderName}
 					<span class="vault-folder-name">{vaultFolderName}</span>
@@ -177,7 +200,7 @@
 	{:else if error}
 		<div class="error-block">
 			<p class="status-message error">{error}</p>
-			<button class="btn-secondary retry-button" onclick={loadRegistry}>{m.retry()}</button>
+			<button class="btn-secondary retry-button" onclick={() => loadRegistry(true)}>{m.retry()}</button>
 		</div>
 	{:else if filteredMods.length === 0}
 		<p class="status-message">{m.no_mods_found()}</p>
@@ -216,6 +239,11 @@
 	}
 
 	.page-header {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--spacing-sm);
 		margin-bottom: var(--spacing-md);
 	}
 
@@ -224,7 +252,6 @@
 		flex-wrap: wrap;
 		gap: var(--spacing-sm);
 		align-items: center;
-		margin-top: var(--spacing-sm);
 	}
 
 	.vault-folder-name {
@@ -239,6 +266,17 @@
 	.header-button {
 		white-space: nowrap;
 		min-height: 2.5rem;
+	}
+
+	.refresh-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding-inline: var(--spacing-sm);
+	}
+
+	.refresh-icon {
+		display: block;
 	}
 
 	.controls {

@@ -45,27 +45,157 @@ function buildCampaignNameMap(mods: BrowseMod[]): void {
 	campaignNameMap = map;
 }
 
+// --- Caching ---
+//
+// The browse-tier registry.json is fetched on the home screen. Without caching
+// it is re-downloaded on every visit. These helpers store the most recent
+// successful fetch in the Cache API and stamp it with the time it was written,
+// so a fresh copy can be served without a network round trip and only
+// revalidated past a timed interval or on an explicit refresh.
+//
+// A service worker is intentionally not used here. Capacitor's native WebViews
+// do not register one, and the Cache API is reachable from the page context in
+// modern browsers and WebViews, so the caching logic can live in app code as a
+// single path. Where the Cache API is unavailable, every entry point degrades
+// to a no-op and the app simply fetches from the network.
+
+const CACHE_NAME = 'ebr-registry-cache-v1';
+
+/** Custom response header recording when an entry was stored, as epoch ms. */
+const CACHED_AT_HEADER = 'x-ebr-cached-at';
+
+/**
+ * How long a cached registry is served before the next fetch revalidates it.
+ * The registry changes infrequently (mods are published occasionally), so an
+ * hour keeps the browse screen instant on repeat visits without letting a new
+ * publish go unseen for long. A manual refresh bypasses this entirely.
+ */
+export const REGISTRY_TTL_MS = 60 * 60 * 1000;
+
+/** A cached registry body plus the time it was stored. */
+export interface CachedRegistry {
+	/** Parsed registry JSON. */
+	data: unknown;
+	/** Epoch milliseconds when this copy was stored. */
+	cachedAt: number;
+}
+
+/** True when the Cache API is usable in the current context. */
+function cacheAvailable(): boolean {
+	return typeof caches !== 'undefined';
+}
+
+/**
+ * Read the cached registry for a URL. Returns null when the Cache API is
+ * unavailable, nothing is stored, or the stored entry cannot be read. A corrupt
+ * or unreadable entry is treated as a miss so the caller falls through to the
+ * network.
+ */
+export async function readRegistryCache(url: string): Promise<CachedRegistry | null> {
+	if (!cacheAvailable()) return null;
+	try {
+		const cache = await caches.open(CACHE_NAME);
+		const response = await cache.match(url);
+		if (!response) return null;
+		const stamp = Number(response.headers.get(CACHED_AT_HEADER));
+		const cachedAt = Number.isFinite(stamp) ? stamp : 0;
+		const data = await response.json();
+		return { data, cachedAt };
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Store a freshly fetched registry body, stamped with the current time.
+ * Caching is best-effort: a write failure (quota, unavailable cache) is
+ * swallowed so it can never break the fetch that produced the body.
+ */
+export async function writeRegistryCache(url: string, body: string): Promise<void> {
+	if (!cacheAvailable()) return;
+	try {
+		const cache = await caches.open(CACHE_NAME);
+		const stamped = new Response(body, {
+			headers: {
+				'content-type': 'application/json',
+				[CACHED_AT_HEADER]: String(Date.now()),
+			},
+		});
+		await cache.put(url, stamped);
+	} catch {
+		// Best-effort: nothing to do when the write fails.
+	}
+}
+
+/** True when a cached copy is still within the timed-refresh interval. */
+export function isRegistryFresh(cachedAt: number, now: number = Date.now()): boolean {
+	return now - cachedAt < REGISTRY_TTL_MS;
+}
+
 // --- Fetching ---
 
-/** Fetch and parse the browse-tier registry. */
-export async function fetchRegistry(): Promise<Registry> {
+/** Options controlling how the browse-tier registry is fetched. */
+export interface FetchRegistryOptions {
+	/**
+	 * Bypass the timed-interval cache check and always revalidate against the
+	 * network. Used for the manual "refresh" affordance. A successful refresh
+	 * still updates the cache; a failed one still falls back to any cached copy.
+	 */
+	forceRefresh?: boolean;
+}
+
+/**
+ * Fetch and parse the browse-tier registry.
+ *
+ * Results are cached via the Cache API (see the Caching section above). A cached copy
+ * that is still within the timed-refresh interval is served without a network
+ * request, so the registry is not re-downloaded on every page load. Past the
+ * interval, or when `forceRefresh` is set, the network is consulted and the
+ * cache refreshed. When the network is unreachable or errors, any cached copy
+ * (even a stale one) is served before the error is surfaced.
+ */
+export async function fetchRegistry(options: FetchRegistryOptions = {}): Promise<Registry> {
 	const url = `${RAW_BASE}/registry.json`;
+
+	// Serve a still-fresh cached copy without touching the network, unless the
+	// caller asked for an explicit refresh.
+	if (!options.forceRefresh) {
+		const cached = await readRegistryCache(url);
+		if (cached && isRegistryFresh(cached.cachedAt)) {
+			return parseRegistry(cached.data);
+		}
+	}
+
 	let response: Response;
 	try {
 		response = await fetch(url);
 	} catch (err) {
+		// Offline or DNS failure: prefer a cached copy, even a stale one, over an
+		// error so the browse screen stays usable without a connection.
+		const cached = await readRegistryCache(url);
+		if (cached) return parseRegistry(cached.data);
 		throw new NetworkError(`Network error fetching registry: ${url}`, err);
 	}
 	if (!response.ok) {
+		const cached = await readRegistryCache(url);
+		if (cached) return parseRegistry(cached.data);
 		throw new RegistryFetchError(url, response.status, response.statusText);
 	}
+	let body: string;
 	let data: unknown;
 	try {
-		data = await response.json();
+		// Read and parse in one guarded step so a mid-stream body-read failure is
+		// normalized to the same RegistryParseError the old response.json() path
+		// produced, rather than escaping raw.
+		body = await response.text();
+		data = JSON.parse(body);
 	} catch (err) {
 		throw new RegistryParseError('root', `Registry response is not valid JSON`);
 	}
-	return parseRegistry(data);
+	const registry = parseRegistry(data);
+	// Only cache after a successful parse so a malformed payload is never stored.
+	await writeRegistryCache(url, body);
+	return registry;
 }
 
 /** Fetch the detail-tier data for a specific mod. */

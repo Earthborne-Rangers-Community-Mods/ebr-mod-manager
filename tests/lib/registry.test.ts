@@ -7,10 +7,15 @@ import {
 	getRegistryCampaignName,
 	fetchDescription,
 	fetchRegistry,
+	readRegistryCache,
+	writeRegistryCache,
+	isRegistryFresh,
+	REGISTRY_TTL_MS,
 	DESCRIPTION_FILENAME,
 } from '$lib/registry.js';
 import {
 	RegistryParseError,
+	RegistryFetchError,
 	InvalidRepoUrlError,
 	DescriptionFetchError,
 	NetworkError,
@@ -18,6 +23,28 @@ import {
 import type { BrowseMod } from '$lib/registry.js';
 
 // --- Helpers ---
+
+/**
+ * Install a minimal in-memory Cache API on the global `caches` for a test.
+ * Returns the backing store so a test can seed or inspect entries directly.
+ * Each `match` returns a fresh clone so a stored body can be read more than
+ * once, mirroring the real Cache API. Call `vi.unstubAllGlobals()` in an
+ * afterEach to remove it.
+ */
+function installMockCaches(): Map<string, Response> {
+	const store = new Map<string, Response>();
+	const cache = {
+		async match(request: string): Promise<Response | undefined> {
+			const hit = store.get(request);
+			return hit ? hit.clone() : undefined;
+		},
+		async put(request: string, response: Response): Promise<void> {
+			store.set(request, response);
+		},
+	};
+	vi.stubGlobal('caches', { open: async () => cache });
+	return store;
+}
 
 function catchError(fn: () => void): Error {
 	try {
@@ -497,5 +524,257 @@ describe('fetchRegistry', () => {
 			expect(err).toBeInstanceOf(RegistryParseError);
 			expect((err as RegistryParseError).field).toBe('root');
 		}
+	});
+});
+
+// --- registry cache helpers ---
+
+describe('isRegistryFresh', () => {
+	it('is true when the entry is younger than the interval', () => {
+		const now = 1_000_000;
+		expect(isRegistryFresh(now - (REGISTRY_TTL_MS - 1), now)).toBe(true);
+	});
+
+	it('is false once the entry reaches the interval', () => {
+		const now = 1_000_000;
+		expect(isRegistryFresh(now - REGISTRY_TTL_MS, now)).toBe(false);
+	});
+
+	it('is false for an entry older than the interval', () => {
+		const now = 1_000_000;
+		expect(isRegistryFresh(now - (REGISTRY_TTL_MS + 1), now)).toBe(false);
+	});
+});
+
+describe('registry cache helpers without a Cache API', () => {
+	const cacheUrl = 'https://example.com/registry.json';
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it('readRegistryCache returns null', async () => {
+		// caches is undefined in the test environment unless stubbed.
+		expect(typeof caches).toBe('undefined');
+		expect(await readRegistryCache(cacheUrl)).toBeNull();
+	});
+
+	it('writeRegistryCache is a no-op and does not throw', async () => {
+		await expect(writeRegistryCache(cacheUrl, '{}')).resolves.toBeUndefined();
+	});
+});
+
+describe('registry cache helpers round trip', () => {
+	const CACHED_AT_HEADER = 'x-ebr-cached-at';
+	const cacheUrl = 'https://example.com/registry.json';
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it('reads back what was written, stamped with the write time', async () => {
+		installMockCaches();
+		vi.spyOn(Date, 'now').mockReturnValue(5_000);
+
+		await writeRegistryCache(cacheUrl, '{"schemaVersion":1,"mods":[]}');
+		const cached = await readRegistryCache(cacheUrl);
+
+		expect(cached).not.toBeNull();
+		expect(cached?.cachedAt).toBe(5_000);
+		expect(cached?.data).toEqual({ schemaVersion: 1, mods: [] });
+	});
+
+	it('returns null for a URL that was never written', async () => {
+		installMockCaches();
+		expect(await readRegistryCache(cacheUrl)).toBeNull();
+	});
+
+	it('treats a corrupt cached body as a miss', async () => {
+		const store = installMockCaches();
+		store.set(
+			cacheUrl,
+			new Response('not json', {
+				headers: { [CACHED_AT_HEADER]: '5000' },
+			}),
+		);
+		expect(await readRegistryCache(cacheUrl)).toBeNull();
+	});
+
+	it('treats a missing timestamp header as epoch zero (stale)', async () => {
+		const store = installMockCaches();
+		store.set(cacheUrl, new Response('{"schemaVersion":1,"mods":[]}'));
+
+		const cached = await readRegistryCache(cacheUrl);
+		expect(cached?.cachedAt).toBe(0);
+		expect(isRegistryFresh(cached!.cachedAt, REGISTRY_TTL_MS + 1)).toBe(false);
+	});
+});
+
+// --- fetchRegistry caching ---
+
+describe('fetchRegistry caching', () => {
+	const REGISTRY_URL =
+		'https://raw.githubusercontent.com/Earthborne-Rangers-Community-Mods/ebr-mod-registry/main/registry.json';
+	const TTL_MS = 60 * 60 * 1000;
+
+	/** Seed the cache store with a registry body stamped at the given time. */
+	function seedCache(store: Map<string, Response>, mods: unknown[], cachedAt: number) {
+		store.set(
+			REGISTRY_URL,
+			new Response(JSON.stringify(validRegistryData(mods)), {
+				headers: { 'x-ebr-cached-at': String(cachedAt) },
+			}),
+		);
+	}
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it('serves a fresh cached copy without hitting the network', async () => {
+		const store = installMockCaches();
+		vi.spyOn(Date, 'now').mockReturnValue(TTL_MS);
+		seedCache(store, [validMod({ id: 'cached-mod' })], TTL_MS - 1);
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+		const result = await fetchRegistry();
+
+		expect(result.mods[0].id).toBe('cached-mod');
+		expect(fetchSpy).not.toHaveBeenCalled();
+	});
+
+	it('revalidates from the network when the cached copy is stale', async () => {
+		const store = installMockCaches();
+		vi.spyOn(Date, 'now').mockReturnValue(2 * TTL_MS);
+		seedCache(store, [validMod({ id: 'stale-mod' })], 0);
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(JSON.stringify(validRegistryData([validMod({ id: 'fresh-mod' })])), {
+				status: 200,
+			}),
+		);
+
+		const result = await fetchRegistry();
+
+		expect(result.mods[0].id).toBe('fresh-mod');
+		expect(fetchSpy).toHaveBeenCalledOnce();
+	});
+
+	it('forceRefresh bypasses a fresh cache and hits the network', async () => {
+		const store = installMockCaches();
+		vi.spyOn(Date, 'now').mockReturnValue(TTL_MS);
+		seedCache(store, [validMod({ id: 'cached-mod' })], TTL_MS - 1);
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(JSON.stringify(validRegistryData([validMod({ id: 'fresh-mod' })])), {
+				status: 200,
+			}),
+		);
+
+		const result = await fetchRegistry({ forceRefresh: true });
+
+		expect(result.mods[0].id).toBe('fresh-mod');
+		expect(fetchSpy).toHaveBeenCalledOnce();
+	});
+
+	it('writes a successful network response back to the cache', async () => {
+		const store = installMockCaches();
+		vi.spyOn(Date, 'now').mockReturnValue(123_456);
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response(JSON.stringify(validRegistryData([validMod({ id: 'written-mod' })])), {
+				status: 200,
+			}),
+		);
+
+		await fetchRegistry();
+
+		const stored = store.get(REGISTRY_URL);
+		expect(stored).toBeDefined();
+		expect(stored?.headers.get('x-ebr-cached-at')).toBe('123456');
+		expect((await stored!.clone().json()).mods[0].id).toBe('written-mod');
+	});
+
+	it('falls back to a stale cache when the network fails', async () => {
+		const store = installMockCaches();
+		vi.spyOn(Date, 'now').mockReturnValue(2 * TTL_MS);
+		seedCache(store, [validMod({ id: 'stale-mod' })], 0);
+		vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+		const result = await fetchRegistry();
+
+		expect(result.mods[0].id).toBe('stale-mod');
+	});
+
+	it('falls back to a cached copy when the response is not OK', async () => {
+		const store = installMockCaches();
+		vi.spyOn(Date, 'now').mockReturnValue(2 * TTL_MS);
+		seedCache(store, [validMod({ id: 'stale-mod' })], 0);
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response('', { status: 503, statusText: 'Service Unavailable' }),
+		);
+
+		const result = await fetchRegistry();
+
+		expect(result.mods[0].id).toBe('stale-mod');
+	});
+
+	it('throws NetworkError when the network fails and nothing is cached', async () => {
+		installMockCaches();
+		vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new TypeError('Failed to fetch'));
+
+		await expect(fetchRegistry()).rejects.toBeInstanceOf(NetworkError);
+	});
+
+	it('throws RegistryFetchError when the response is not OK and nothing is cached', async () => {
+		installMockCaches();
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response('', { status: 503, statusText: 'Service Unavailable' }),
+		);
+
+		await expect(fetchRegistry()).rejects.toBeInstanceOf(RegistryFetchError);
+	});
+
+	it('does not write to cache when the response body is not valid JSON', async () => {
+		const store = installMockCaches();
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response('not json', { status: 200 }),
+		);
+
+		await expect(fetchRegistry()).rejects.toBeInstanceOf(RegistryParseError);
+		expect(store.size).toBe(0);
+	});
+
+	it('does not write to cache when the response is valid JSON but not a valid registry', async () => {
+		const store = installMockCaches();
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response('{"schemaVersion":"not-a-number","mods":[]}', { status: 200 }),
+		);
+
+		await expect(fetchRegistry()).rejects.toBeInstanceOf(RegistryParseError);
+		expect(store.size).toBe(0);
+	});
+
+	it('normalizes a mid-stream body-read failure to RegistryParseError on root', async () => {
+		const store = installMockCaches();
+		// An OK response whose body stream rejects when read -- e.g. a connection
+		// dropped after headers arrived. This must surface as the same parse error
+		// the old response.json() path produced, not escape raw.
+		const failingBody = {
+			ok: true,
+			status: 200,
+			statusText: 'OK',
+			text: () => Promise.reject(new TypeError('network error reading body')),
+		} as unknown as Response;
+		vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(failingBody);
+
+		try {
+			await fetchRegistry();
+			throw new Error('Expected to throw');
+		} catch (err) {
+			expect(err).toBeInstanceOf(RegistryParseError);
+			expect((err as RegistryParseError).field).toBe('root');
+		}
+		expect(store.size).toBe(0);
 	});
 });
