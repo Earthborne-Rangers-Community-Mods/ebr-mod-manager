@@ -33,7 +33,7 @@ vi.mock('@capacitor/core', () => ({
 
 const mockPlugin = vi.hoisted(() => ({
 	pickDirectory: vi.fn(async () => ({ uri: 'content://mock/picked', name: 'picked' })),
-	getStoredDirectory: vi.fn(async () => ({ uri: null as string | null, name: null as string | null })),
+	getWritableDirectory: vi.fn(async () => ({ uri: null as string | null, name: null as string | null })),
 	listVaultContents: vi.fn(async () => ({ entries: [] as Array<{ name: string; isDirectory: boolean }> })),
 	writeFile: vi.fn(async () => undefined),
 	clearVaultContents: vi.fn(async () => undefined),
@@ -365,32 +365,34 @@ describe('pickVaultTarget (native)', () => {
 		mockIsNative.mockReturnValue(false);
 	});
 
-	it('returns stored directory if available', async () => {
-		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: 'content://stored/uri', name: 'My Vault' });
-
-		const target = await pickVaultTarget('test-mod');
-
-		expect(target).toEqual({ _platform: 'native', uri: 'content://stored/uri', folderName: 'My Vault' });
-		expect(mockPlugin.pickDirectory).not.toHaveBeenCalled();
-	});
-
-	it('opens picker when no stored directory exists', async () => {
-		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: null, name: null });
+	it('picks fresh when no writable directory is available (null capability)', async () => {
+		mockPlugin.getWritableDirectory.mockResolvedValueOnce({ uri: null, name: null });
 		mockPlugin.pickDirectory.mockResolvedValueOnce({ uri: 'content://newly/picked', name: 'New Vault' });
 
 		const target = await pickVaultTarget('test-mod');
 
 		expect(target).toEqual({ _platform: 'native', uri: 'content://newly/picked', folderName: 'New Vault' });
-		expect(mockPlugin.pickDirectory).toHaveBeenCalled();
+		expect(mockPlugin.pickDirectory).toHaveBeenCalledOnce();
 	});
 
-	it('checks stored directory before opening picker', async () => {
-		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: 'content://existing', name: 'Existing' });
+	it('reuses a persisted writable directory without re-picking', async () => {
+		mockPlugin.getWritableDirectory.mockResolvedValueOnce({ uri: 'content://writable/uri', name: 'My Vault' });
 
-		await pickVaultTarget('any-mod');
+		const target = await pickVaultTarget('test-mod');
 
-		expect(mockPlugin.getStoredDirectory).toHaveBeenCalledOnce();
+		expect(target).toEqual({ _platform: 'native', uri: 'content://writable/uri', folderName: 'My Vault' });
 		expect(mockPlugin.pickDirectory).not.toHaveBeenCalled();
+	});
+
+	it('picks fresh after a restart with no persisted writable directory (no silent write)', async () => {
+		mockPlugin.getWritableDirectory.mockResolvedValueOnce({ uri: null, name: null });
+		mockPlugin.pickDirectory.mockResolvedValueOnce({ uri: 'content://newly/picked', name: 'New Vault' });
+
+		const target = await pickVaultTarget('test-mod');
+
+		expect(target).toEqual({ _platform: 'native', uri: 'content://newly/picked', folderName: 'New Vault' });
+		expect(mockPlugin.getWritableDirectory).toHaveBeenCalledOnce();
+		expect(mockPlugin.pickDirectory).toHaveBeenCalledOnce();
 	});
 });
 
@@ -410,7 +412,7 @@ describe('changeVaultTarget (native)', () => {
 		const target = await changeVaultTarget();
 
 		expect(target).toEqual({ _platform: 'native', uri: 'content://new/picked', folderName: 'New Folder' });
-		expect(mockPlugin.getStoredDirectory).not.toHaveBeenCalled();
+		expect(mockPlugin.getWritableDirectory).not.toHaveBeenCalled();
 		expect(mockPlugin.pickDirectory).toHaveBeenCalledOnce();
 	});
 });
@@ -442,18 +444,27 @@ describe('getStoredVaultFolderName', () => {
 		mockIsNative.mockReturnValue(false);
 	});
 
-	it('returns folder name when native has stored directory', async () => {
+	it('returns folder name when native has a writable directory', async () => {
 		mockIsNative.mockReturnValue(true);
-		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: 'content://x', name: 'My Vault' });
+		mockPlugin.getWritableDirectory.mockResolvedValueOnce({ uri: 'content://x', name: 'My Vault' });
 
 		const name = await getStoredVaultFolderName();
 
 		expect(name).toBe('My Vault');
 	});
 
-	it('returns null when native has no stored directory', async () => {
+	it('returns null when native has no writable directory', async () => {
 		mockIsNative.mockReturnValue(true);
-		mockPlugin.getStoredDirectory.mockResolvedValueOnce({ uri: null, name: null });
+		mockPlugin.getWritableDirectory.mockResolvedValueOnce({ uri: null, name: null });
+
+		const name = await getStoredVaultFolderName();
+
+		expect(name).toBeNull();
+	});
+
+	it('returns null when native reports an empty writable uri (Android)', async () => {
+		mockIsNative.mockReturnValue(true);
+		mockPlugin.getWritableDirectory.mockResolvedValueOnce({ uri: '', name: 'ignored' });
 
 		const name = await getStoredVaultFolderName();
 
@@ -466,7 +477,7 @@ describe('getStoredVaultFolderName', () => {
 		const name = await getStoredVaultFolderName();
 
 		expect(name).toBeNull();
-		expect(mockPlugin.getStoredDirectory).not.toHaveBeenCalled();
+		expect(mockPlugin.getWritableDirectory).not.toHaveBeenCalled();
 	});
 });
 
@@ -588,6 +599,14 @@ describe('writeVaultNative', () => {
 		];
 		await expect(writeVaultNative(files)).rejects.toBeInstanceOf(VaultDirectoryMissingError);
 	});
+
+	it('throws VaultDirectoryMissingError when no directory is selected (no fresh pick)', async () => {
+		mockPlugin.writeFile.mockRejectedValueOnce(new Error('No directory selected'));
+		const files: ExtractedFile[] = [
+			{ path: 'a.md', data: new TextEncoder().encode('a') },
+		];
+		await expect(writeVaultNative(files)).rejects.toBeInstanceOf(VaultDirectoryMissingError);
+	});
 });
 
 describe('checkVaultNative', () => {
@@ -670,6 +689,11 @@ describe('clearVaultNative', () => {
 
 	it('throws VaultDirectoryMissingError when directory is gone', async () => {
 		mockPlugin.clearVaultContents.mockRejectedValueOnce(new Error('Directory not found'));
+		await expect(clearVaultNative()).rejects.toBeInstanceOf(VaultDirectoryMissingError);
+	});
+
+	it('throws VaultDirectoryMissingError when no directory is selected (no fresh pick)', async () => {
+		mockPlugin.clearVaultContents.mockRejectedValueOnce(new Error('No directory selected'));
 		await expect(clearVaultNative()).rejects.toBeInstanceOf(VaultDirectoryMissingError);
 	});
 

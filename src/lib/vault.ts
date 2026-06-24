@@ -53,16 +53,18 @@ export function isAndroidBrowser(): boolean {
 
 /**
  * Open a directory picker appropriate for the current platform.
- * On native: checks for a stored directory from a previous session, then
- * opens the system directory picker (SAF on Android) if none is stored.
+ * On native: reuses a persisted writable directory when the platform offers one
+ * (iOS security-scoped bookmark); otherwise opens the system directory picker.
  * On browser: opens showDirectoryPicker().
  * Returns an opaque VaultTarget to pass to subsequent vault operations.
  */
 export async function pickVaultTarget(modId: string): Promise<VaultTarget> {
 	if (Capacitor.isNativePlatform()) {
-		const stored = await EbrVaultPlugin.getStoredDirectory();
-		if (stored.uri) {
-			return { _platform: 'native', uri: stored.uri, folderName: stored.name };
+		// Reuse a persisted writable directory if this platform offers one;
+		// a null uri means none is available and we must pick fresh.
+		const writable = await EbrVaultPlugin.getWritableDirectory();
+		if (writable.uri) {
+			return { _platform: 'native', uri: writable.uri, folderName: writable.name };
 		}
 		const picked = await EbrVaultPlugin.pickDirectory();
 		return { _platform: 'native', uri: picked.uri, folderName: picked.name };
@@ -104,11 +106,16 @@ export function getVaultFolderName(target: VaultTarget): string | null {
 	return target.handle.name;
 }
 
-/** Get the stored vault folder name. Returns null if none stored. */
+/**
+ * Get the stored vault folder name. Returns null if none stored.
+ * Only meaningful where the platform persists a writable directory: on iOS the
+ * bookmark carries a name; on Android there is no persisted writable directory,
+ * so this returns null.
+ */
 export async function getStoredVaultFolderName(): Promise<string | null> {
 	if (!Capacitor.isNativePlatform()) return null;
-	const stored = await EbrVaultPlugin.getStoredDirectory();
-	return stored.uri ? stored.name : null;
+	const writable = await EbrVaultPlugin.getWritableDirectory();
+	return writable.uri ? writable.name : null;
 }
 
 /** Remove all contents from a vault target. */
@@ -152,7 +159,10 @@ function vaultMarkersFirst(files: ExtractedFile[]): ExtractedFile[] {
 
 /** Wrap known plugin errors as typed vault errors; rethrow all others. */
 function wrapNativeVaultError(err: unknown): never {
-	if (err instanceof Error && err.message.includes('Directory not found')) {
+	if (
+		err instanceof Error &&
+		(err.message.includes('Directory not found') || err.message.includes('No directory selected'))
+	) {
 		throw new VaultDirectoryMissingError();
 	}
 	if (isQuotaError(err)) {

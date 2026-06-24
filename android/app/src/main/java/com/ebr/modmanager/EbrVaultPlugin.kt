@@ -2,6 +2,8 @@ package com.ebr.modmanager
 
 import android.app.Activity
 import android.content.Intent
+import android.os.Build
+import android.provider.DocumentsContract
 import android.util.Base64
 import androidx.activity.result.ActivityResult
 import androidx.core.content.edit
@@ -28,10 +30,23 @@ class EbrVaultPlugin : Plugin() {
     // Cleared on each clearVaultContents call since the directory tree changes.
     private val dirCache = mutableMapOf<String, DocumentFile>()
 
+    // Directory chosen in the current session via pickDirectory(). Not persisted:
+    // the SAF grant from ACTION_OPEN_DOCUMENT_TREE lasts only for this process and
+    // we deliberately do not take a persistable permission. A fresh pickDirectory()
+    // is required before any write, including after an app restart.
+    private var activeDirectoryUri: String? = null
+
     @Suppress("unused")
     @PluginMethod
     fun pickDirectory(call: PluginCall) {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        // Pre-navigate the picker to the last-used directory when one is stored.
+        // This is only a starting-location hint, not a grant of access.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getStoredSeedUri()?.let { seed ->
+                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, seed.toUri())
+            }
+        }
         startActivityForResult(call, intent, "pickDirectoryResult")
     }
 
@@ -49,12 +64,14 @@ class EbrVaultPlugin : Plugin() {
             return
         }
 
-        // Take persistable read/write permissions so the URI survives app restarts
-        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        context.contentResolver.takePersistableUriPermission(uri, flags)
+        // No persistable permission is taken: the grant from ACTION_OPEN_DOCUMENT_TREE
+        // lasts only for this process. Hold the directory in memory for this session's
+        // writes; a fresh pickDirectory() is required again after an app restart.
+        activeDirectoryUri = uri.toString()
+        dirCache.clear()
 
-        storeDirectoryUri(uri.toString())
+        // Persist the URI only as a picker seed hint for the next launch.
+        storeSeedUri(uri.toString())
 
         val dir = DocumentFile.fromTreeUri(context, uri)
         val ret = JSObject()
@@ -65,58 +82,22 @@ class EbrVaultPlugin : Plugin() {
 
     @Suppress("unused")
     @PluginMethod
-    fun getStoredDirectory(call: PluginCall) {
-        val uriString = getStoredDirectoryUri()
+    fun getWritableDirectory(call: PluginCall) {
+        // By design, Android persists no writable directory across sessions. SAF
+        // can persist write access via takePersistableUriPermission(), but we
+        // deliberately do not take it because the user may want to pick a new
+        // location. Always answer null; callers must invoke pickDirectory()
+        // before any write.
         val ret = JSObject()
-
-        if (uriString != null) {
-            // Verify the persisted permission is still valid
-            val uri = uriString.toUri()
-            val persistedUris = context.contentResolver.persistedUriPermissions
-            val hasPermission = persistedUris.any {
-                it.uri == uri && it.isReadPermission && it.isWritePermission
-            }
-
-            if (hasPermission) {
-                // Verify the directory still exists on disk (SAF permissions
-                // survive folder deletion, so permission alone is not enough)
-                val dir = DocumentFile.fromTreeUri(context, uri)
-                if (dir != null && dir.exists() && dir.canWrite()) {
-                    ret.put("uri", uriString)
-                    ret.put("name", dir.name ?: JSONObject.NULL)
-                } else {
-                    clearStoredDirectoryUri()
-                    ret.put("uri", JSONObject.NULL)
-                }
-            } else {
-                // Permission was revoked; clear the stale reference
-                clearStoredDirectoryUri()
-                ret.put("uri", JSONObject.NULL)
-            }
-        } else {
-            ret.put("uri", JSONObject.NULL)
-        }
-
+        ret.put("uri", JSONObject.NULL)
+        ret.put("name", JSONObject.NULL)
         call.resolve(ret)
     }
 
     @Suppress("unused")
     @PluginMethod
     fun listVaultContents(call: PluginCall) {
-        val uriString = getStoredDirectoryUri()
-        if (uriString == null) {
-            call.reject("No directory selected")
-            return
-        }
-
-        val dir = DocumentFile.fromTreeUri(context, uriString.toUri()) ?: run {
-            call.reject("Directory not found")
-            return
-        }
-        if (!dir.exists()) {
-            call.reject("Directory not found")
-            return
-        }
+        val dir = resolveActiveDir(call) ?: return
 
         val entries = JSArray()
         for (file in dir.listFiles()) {
@@ -142,22 +123,7 @@ class EbrVaultPlugin : Plugin() {
             return
         }
 
-        val uriString = getStoredDirectoryUri()
-        if (uriString == null) {
-            call.reject("No directory selected")
-            return
-        }
-
-        val rootDir = DocumentFile.fromTreeUri(context, uriString.toUri()) ?: run {
-            clearStoredDirectoryUri()
-            call.reject("Directory not found")
-            return
-        }
-        if (!rootDir.exists()) {
-            clearStoredDirectoryUri()
-            call.reject("Directory not found")
-            return
-        }
+        val rootDir = resolveActiveDir(call) ?: return
 
         try {
             val segments = path.split("/")
@@ -212,20 +178,7 @@ class EbrVaultPlugin : Plugin() {
     fun clearVaultContents(call: PluginCall) {
         dirCache.clear()
 
-        val uriString = getStoredDirectoryUri()
-        if (uriString == null) {
-            call.reject("No directory selected")
-            return
-        }
-
-        val dir = DocumentFile.fromTreeUri(context, uriString.toUri()) ?: run {
-            call.resolve()
-            return
-        }
-        if (!dir.exists()) {
-            call.resolve()
-            return
-        }
+        val dir = resolveActiveDir(call) ?: return
 
         val children = dir.listFiles()
         val total = children.size
@@ -254,6 +207,32 @@ class EbrVaultPlugin : Plugin() {
     }
 
     /**
+     * Resolve the active session directory for a SAF operation, enforcing the
+     * seed-only security invariant in one place: no operation proceeds without a
+     * live in-session pick, and a vanished directory forces a re-pick. Returns
+     * the resolved DocumentFile on success, or null after already rejecting the
+     * call - so callers early-return on null. Rejects with "No directory
+     * selected" when no pick is active, or "Directory not found" (and clears the
+     * active URI) when the picked directory is gone.
+     */
+    private fun resolveActiveDir(call: PluginCall): DocumentFile? {
+        val uriString = activeDirectoryUri
+        if (uriString == null) {
+            call.reject("No directory selected")
+            return null
+        }
+
+        val dir = DocumentFile.fromTreeUri(context, uriString.toUri())
+        if (dir == null || !dir.exists()) {
+            activeDirectoryUri = null
+            call.reject("Directory not found")
+            return null
+        }
+
+        return dir
+    }
+
+    /**
      * Recursively delete a DocumentFile. For directories, deletes children
      * first since some SAF providers only delete empty directories.
      */
@@ -266,20 +245,15 @@ class EbrVaultPlugin : Plugin() {
         documentFile.delete()
     }
 
-    private fun storeDirectoryUri(uri: String) {
+    // Persist the last-used directory URI as a picker seed hint only.
+    private fun storeSeedUri(uri: String) {
         context.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE).edit {
             putString(KEY_DIRECTORY_URI, uri)
         }
     }
 
-    private fun getStoredDirectoryUri(): String? {
+    private fun getStoredSeedUri(): String? {
         return context.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE)
             .getString(KEY_DIRECTORY_URI, null)
-    }
-
-    private fun clearStoredDirectoryUri() {
-        context.getSharedPreferences(PREFS_NAME, Activity.MODE_PRIVATE).edit {
-            remove(KEY_DIRECTORY_URI)
-        }
     }
 }
