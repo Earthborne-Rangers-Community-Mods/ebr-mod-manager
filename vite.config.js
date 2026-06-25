@@ -14,6 +14,9 @@ export default defineConfig({
   ],
   test: {
     include: ['tests/**/*.test.ts'],
+    // Process CSS so `?raw` imports of .css resolve to their real text in tests
+    // (vitest otherwise stubs CSS modules to empty, even with the ?raw query).
+    css: true,
     alias: {
       '$lib': path.resolve('./src/lib'),
     },

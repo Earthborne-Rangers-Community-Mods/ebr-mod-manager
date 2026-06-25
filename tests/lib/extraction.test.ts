@@ -346,6 +346,14 @@ describe('repackageModZip', () => {
 
 		expect(paths).toContain('readme.md');
 		expect(paths).not.toContain('.obsidian/plugins/evil/manifest.json');
+		// The smuggled plugin is dropped; only the trusted read-only plugin remains.
+		expect(paths).toContain('.obsidian/plugins/read-only-view/main.js');
+		expect(paths.filter((p) => p.startsWith('.obsidian/plugins/')).every((p) =>
+			p.startsWith('.obsidian/plugins/read-only-view/'))).toBe(true);
+		// ...and it is the only enabled plugin even with smuggled input present.
+		expect(JSON.parse(
+			new TextDecoder().decode(entries['.obsidian/community-plugins.json']),
+		)).toEqual(['read-only-view']);
 	});
 
 	it('verifies commit hash when expectedCommitHash is provided', () => {
@@ -367,6 +375,27 @@ describe('repackageModZip', () => {
 
 		expect(() => repackageModZip(zip, { expectedCommitHash: 'ffffff0000000000000' }))
 			.toThrow(ZipHashMismatchError);
+	});
+
+	it('injects the trusted read-only plugin and enables it', () => {
+		const zip = makeZip({
+			'prefix/': new Uint8Array(0),
+			'prefix/readme.md': '# Hello',
+		});
+
+		const cleanZip = repackageModZip(zip);
+		const entries = unzipSync(cleanZip);
+		const paths = Object.keys(entries);
+
+		expect(paths).toContain('readme.md');
+		expect(paths).toContain('.obsidian/plugins/read-only-view/main.js');
+		expect(paths).toContain('.obsidian/plugins/read-only-view/manifest.json');
+		expect(paths).toContain('.obsidian/community-plugins.json');
+
+		const enabled = JSON.parse(
+			new TextDecoder().decode(entries['.obsidian/community-plugins.json']),
+		);
+		expect(enabled).toEqual(['read-only-view']);
 	});
 });
 

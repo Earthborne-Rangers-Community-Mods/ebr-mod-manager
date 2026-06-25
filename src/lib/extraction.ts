@@ -3,6 +3,7 @@ import {
 	PathTraversalError,
 	ZipHashMismatchError,
 } from './errors.js';
+import { injectReadOnlyView } from './obsidian-plugins.js';
 
 /**
  * File extensions allowed in extracted mod content.
@@ -202,12 +203,15 @@ export function verifyZipCommitHash(topLevelPrefix: string, expectedCommitHash: 
 }
 
 /**
- * Extract a zip, apply all security filters, and re-zip the clean files.
- * Used for the fallback browser download on unsupported browsers so users
- * never receive executables, plugins, or other blocked content.
+ * Extract a zip, apply all security filters, inject the trusted read-only
+ * plugin, and re-zip the result. Used for the fallback browser download on
+ * unsupported browsers so users never receive executables, smuggled plugins,
+ * or other blocked content, and so the downloaded vault opens read-only in
+ * Obsidian - the same vault the directory-write path produces. Injection runs
+ * after the security strip; see `injectReadOnlyView` in obsidian-plugins.ts.
  */
 export function repackageModZip(zipBuffer: ArrayBuffer, options?: ExtractOptions): Uint8Array {
-	const files = extractModZip(zipBuffer, options);
+	const files = injectReadOnlyView(extractModZip(zipBuffer, options));
 	const entries: Record<string, Uint8Array> = {};
 	for (const file of files) {
 		entries[file.path] = file.data;

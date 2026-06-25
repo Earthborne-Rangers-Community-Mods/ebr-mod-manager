@@ -2,6 +2,7 @@
 	import * as m from '$lib/paraglide/messages.js';
 	import { downloadModZip, type DownloadProgress } from '$lib/download.js';
 	import { extractModZipAsync, repackageModZipAsync } from '$lib/extraction.js';
+	import { injectReadOnlyView } from '$lib/obsidian-plugins.js';
 	import {
 		getInstallMethod,
 		isAndroidBrowser,
@@ -87,7 +88,10 @@
 				});
 
 				state = { step: 'writing', message: m.extracting_mod() };
-				const files = await extractModZipAsync(zipBuffer, { expectedCommitHash: mod.commitHash });
+				const extracted = await extractModZipAsync(zipBuffer, { expectedCommitHash: mod.commitHash });
+				// Inject the trusted read-only plugin after the security strip so mod
+				// content opens read-only in Obsidian (see obsidian-plugins.ts).
+				const files = injectReadOnlyView(extracted);
 
 				state = { step: 'writing', message: m.clearing_vault() };
 				await clearVault(target, {
@@ -120,6 +124,9 @@
 					},
 				});
 
+				// Repackage strips blocked content and injects the trusted read-only
+				// plugin, so the downloaded zip unpacks to the same read-only vault the
+				// directory-write path produces (see repackageModZip in extraction.ts).
 				const cleanZip = await repackageModZipAsync(zipBuffer, { expectedCommitHash: mod.commitHash });
 				const blob = new Blob([cleanZip as BlobPart], { type: 'application/zip' });
 				const url = URL.createObjectURL(blob);
