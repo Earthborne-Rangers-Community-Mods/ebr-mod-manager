@@ -18,28 +18,14 @@
 // Fetches are cached for the page lifetime so opening multiple mod
 // detail pages in one session only hits the network once.
 
-import { Capacitor } from '@capacitor/core';
-import { getBaseContentToken } from './devsettings.js';
-
 const BASE_CONTENT_OWNER = 'Earthborne-Rangers-Community-Mods';
 const BASE_CONTENT_REPO = 'ebr-mod-base-content';
 const BASE_CONTENT_BRANCH = 'main';
 
 const SNIPPETS = ['ebr-symbols.css', 'ebr-styles.css'] as const;
 
-function snippetUrl(name: string, token: string | null): string {
+function snippetUrl(name: string): string {
 	const path = `.obsidian/snippets/${name}`;
-	if (token) {
-		// Use the GitHub Contents API so private repos are reachable with
-		// the PAT. On web this goes through the /github-api Vite proxy to
-		// avoid CORS; on native we hit api.github.com directly.
-		const encodedPath = path
-			.split('/')
-			.map((segment) => encodeURIComponent(segment))
-			.join('/');
-		const base = Capacitor.isNativePlatform() ? 'https://api.github.com' : '/github-api';
-		return `${base}/repos/${BASE_CONTENT_OWNER}/${BASE_CONTENT_REPO}/contents/${encodedPath}?ref=${BASE_CONTENT_BRANCH}`;
-	}
 	return `https://raw.githubusercontent.com/${BASE_CONTENT_OWNER}/${BASE_CONTENT_REPO}/${BASE_CONTENT_BRANCH}/${path}`;
 }
 
@@ -63,19 +49,13 @@ export function getBaseContentCss(): Promise<string> {
 const MAX_SNIPPET_BYTES = 1_048_576; // 1 MiB
 
 async function fetchAll(): Promise<string> {
-	const token = getBaseContentToken();
-	const parts = await Promise.all(SNIPPETS.map((name) => fetchOne(name, token)));
+	const parts = await Promise.all(SNIPPETS.map((name) => fetchOne(name)));
 	return parts.filter((p) => p.length > 0).join('\n\n');
 }
 
-async function fetchOne(name: string, token: string | null): Promise<string> {
+async function fetchOne(name: string): Promise<string> {
 	try {
-		const headers: Record<string, string> = {};
-		if (token) {
-			headers['Authorization'] = `Bearer ${token}`;
-			headers['Accept'] = 'application/vnd.github.raw';
-		}
-		const response = await fetch(snippetUrl(name, token), { headers });
+		const response = await fetch(snippetUrl(name));
 		if (!response.ok) return '';
 		// If the server reports a size, reject early without buffering.
 		const contentLength = Number(response.headers.get('content-length'));

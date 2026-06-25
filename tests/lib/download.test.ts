@@ -119,26 +119,7 @@ describe('downloadModZip', () => {
 		);
 	});
 
-	it('includes Authorization header when token is provided', async () => {
-		const fetchMock = vi.fn().mockResolvedValue({
-			ok: true,
-			body: null,
-			arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
-		});
-		vi.stubGlobal('fetch', fetchMock);
-
-		await downloadModZip(mod, { token: 'ghp_test123' });
-		expect(fetchMock).toHaveBeenCalledWith(
-			expect.any(String),
-			expect.objectContaining({
-				headers: expect.objectContaining({
-					Authorization: 'Bearer ghp_test123',
-				}),
-			}),
-		);
-	});
-
-	it('does not include Authorization header when no token', async () => {
+	it('does not include an Authorization header', async () => {
 		const fetchMock = vi.fn().mockResolvedValue({
 			ok: true,
 			body: null,

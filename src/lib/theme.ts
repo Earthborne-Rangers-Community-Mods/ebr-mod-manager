@@ -40,3 +40,20 @@ export function initTheme(): void {
 	const theme = getTheme();
 	applyTheme(theme);
 }
+
+/**
+ * Forget the stored theme preference and fall back to the system theme. The
+ * applied theme is updated immediately so the change is visible without a
+ * reload.
+ */
+export function clearStoredTheme(): void {
+	if (typeof localStorage !== 'undefined') {
+		try {
+			localStorage.removeItem(STORAGE_KEY);
+		} catch {
+			// Storage unavailable -- nothing to clear.
+		}
+	}
+	currentTheme = null;
+	applyTheme(getSystemTheme());
+}

@@ -11,8 +11,6 @@
 	// We cannot detect whether Obsidian is installed. Tapping the
 	// button either launches Obsidian or does nothing; revealing the fallback
 	// after a tap covers the "nothing happened" case without any detection.
-	// Users who confirmed they already own Obsidian ("I already have it" in the
-	// explainer) don't need the install fallback, so we skip it for them.
 	let showFallback = $state(false);
 
 	function handleObsidianClick() {

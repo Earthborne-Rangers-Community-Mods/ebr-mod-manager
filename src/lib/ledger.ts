@@ -5,7 +5,7 @@
 // latestVersion -- and requires no folder read, so it works on every
 // platform including zip-download users who have no stored directory handle.
 
-import { getStorageItem, setStorageItem } from '$lib/safe-storage.js';
+import { getStorageItem, setStorageItem, removeStorageItem } from '$lib/safe-storage.js';
 
 const LEDGER_KEY = 'ebr-download-ledger';
 
@@ -76,6 +76,11 @@ export function recordDownload(modId: string, version: string): void {
 	ledger[modId] = { version, downloadedAt: new Date().toISOString() };
 	// On failure (storage full or unavailable) update awareness degrades silently.
 	setStorageItem(LEDGER_KEY, JSON.stringify(ledger));
+}
+
+/** Erase the whole download ledger, clearing every mod's update badge. */
+export function clearLedger(): void {
+	removeStorageItem(LEDGER_KEY);
 }
 
 /**

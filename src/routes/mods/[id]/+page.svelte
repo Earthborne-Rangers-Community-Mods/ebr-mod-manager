@@ -9,7 +9,6 @@
 	} from '$lib/registry.js';
 	import { ModDetailFetchError, isNetworkError } from '$lib/errors.js';
 	import { renderMarkdown } from '$lib/markdown.js';
-	import { getToken } from '$lib/devsettings.js';
 	import { getLedgerEntry, compareVersions } from '$lib/ledger.js';
 	import { showObsidianIntro } from '$lib/obsidian-intro.js';
 	import InstallButton from '$lib/ui/InstallButton.svelte';
@@ -64,18 +63,16 @@
 
 		// Fetch the description page in the background. A missing or failed
 		// fetch falls through to the manifest's short description -- the
-		// detail view stays usable either way. When a GitHub PAT is set in
-		// the dev panel we forward it so private mod repos can be read.
+		// detail view stays usable either way.
 		const detail = mod;
-		const token = getToken() ?? undefined;
 		try {
-			const md = await fetchDescription(detail, token);
+			const md = await fetchDescription(detail);
 			if (md !== null && mod === detail) {
 				descriptionHtml = renderMarkdown(rewriteImagePaths(md, detail));
 			}
 		} catch (err) {
 			// Network or fetch error -- silently fall back to mod.description,
-			// but log so devs can spot misconfigured repoUrls / missing tokens.
+			// but log so devs can spot misconfigured repoUrls.
 			console.warn(`Failed to fetch description for mod '${detail.id}':`, err);
 		}
 	}

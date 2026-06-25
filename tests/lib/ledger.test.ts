@@ -5,6 +5,7 @@ import {
 	getLedgerEntry,
 	entryFor,
 	recordDownload,
+	clearLedger,
 	hasUpdate,
 	compareVersions,
 	type DownloadLedger,
@@ -19,6 +20,21 @@ beforeEach(() => {
 
 afterEach(() => {
 	vi.useRealTimers();
+});
+
+describe('clearLedger', () => {
+	it('removes the stored ledger', () => {
+		recordDownload('mod-a', '1.0.0');
+		expect(getLedgerEntry('mod-a')).not.toBeNull();
+
+		clearLedger();
+		expect(getLedger()).toEqual({});
+		expect(localStorage.getItem(LEDGER_KEY)).toBeNull();
+	});
+
+	it('is safe when no ledger exists', () => {
+		expect(() => clearLedger()).not.toThrow();
+	});
 });
 
 describe('getLedger', () => {

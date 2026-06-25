@@ -9,6 +9,7 @@ import {
 	fetchRegistry,
 	readRegistryCache,
 	writeRegistryCache,
+	clearRegistryCache,
 	isRegistryFresh,
 	REGISTRY_TTL_MS,
 	DESCRIPTION_FILENAME,
@@ -42,7 +43,14 @@ function installMockCaches(): Map<string, Response> {
 			store.set(request, response);
 		},
 	};
-	vi.stubGlobal('caches', { open: async () => cache });
+	vi.stubGlobal('caches', {
+		open: async () => cache,
+		async delete(): Promise<boolean> {
+			const had = store.size > 0;
+			store.clear();
+			return had;
+		},
+	});
 	return store;
 }
 
@@ -360,7 +368,7 @@ describe('fetchDescription', () => {
 		);
 		const result = await fetchDescription(mod);
 		expect(result).toBe('# Hello\n\nBody');
-		expect(fetchSpy).toHaveBeenCalledWith(expectedUrl, { headers: {} });
+		expect(fetchSpy).toHaveBeenCalledWith(expectedUrl);
 	});
 
 	it('returns null when the file is not present (404)', async () => {
@@ -375,6 +383,15 @@ describe('fetchDescription', () => {
 			new Response('', { status: 500, statusText: 'Server Error' }),
 		);
 		await expect(fetchDescription(mod)).rejects.toBeInstanceOf(DescriptionFetchError);
+	});
+
+	it('fetches anonymously - no options object means no Authorization header', async () => {
+		const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+			new Response('', { status: 200 }),
+		);
+		await fetchDescription(mod);
+		// fetch(url) - single argument confirms no options/headers were passed
+		expect(fetchSpy.mock.calls[0]).toHaveLength(1);
 	});
 });
 
@@ -563,6 +580,10 @@ describe('registry cache helpers without a Cache API', () => {
 	it('writeRegistryCache is a no-op and does not throw', async () => {
 		await expect(writeRegistryCache(cacheUrl, '{}')).resolves.toBeUndefined();
 	});
+
+	it('clearRegistryCache is a no-op and does not throw', async () => {
+		await expect(clearRegistryCache()).resolves.toBeUndefined();
+	});
 });
 
 describe('registry cache helpers round trip', () => {
@@ -588,6 +609,15 @@ describe('registry cache helpers round trip', () => {
 
 	it('returns null for a URL that was never written', async () => {
 		installMockCaches();
+		expect(await readRegistryCache(cacheUrl)).toBeNull();
+	});
+
+	it('clearRegistryCache drops a previously written entry', async () => {
+		installMockCaches();
+		await writeRegistryCache(cacheUrl, '{"schemaVersion":1,"mods":[]}');
+		expect(await readRegistryCache(cacheUrl)).not.toBeNull();
+
+		await clearRegistryCache();
 		expect(await readRegistryCache(cacheUrl)).toBeNull();
 	});
 

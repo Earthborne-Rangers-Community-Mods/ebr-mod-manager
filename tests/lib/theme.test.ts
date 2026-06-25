@@ -87,6 +87,26 @@ describe('getTheme', () => {
 	});
 });
 
+describe('clearStoredTheme', () => {
+	it('removes the stored preference and falls back to system theme', async () => {
+		localStorage.setItem('ebr-theme', 'dark');
+		mockMatchMedia(false); // system prefers light
+		const { getTheme, clearStoredTheme } = await freshModule();
+		getTheme(); // prime the cache to 'dark'
+
+		clearStoredTheme();
+
+		expect(localStorage.getItem('ebr-theme')).toBeNull();
+		expect(getTheme()).toBe('light');
+		expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+	});
+
+	it('is safe when nothing is stored', async () => {
+		const { clearStoredTheme } = await freshModule();
+		expect(() => clearStoredTheme()).not.toThrow();
+	});
+});
+
 describe('setTheme', () => {
 	it('writes the theme to localStorage', async () => {
 		const { setTheme } = await freshModule();

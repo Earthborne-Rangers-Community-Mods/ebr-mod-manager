@@ -29,7 +29,6 @@ export function modZipProxyUrl(mod: { repoUrl: string; commitHash: string }): st
 export async function downloadModZip(
 	mod: { repoUrl: string; commitHash: string },
 	options?: {
-		token?: string;
 		onProgress?: (progress: DownloadProgress) => void;
 		signal?: AbortSignal;
 	},
@@ -38,9 +37,6 @@ export async function downloadModZip(
 	const headers: Record<string, string> = {
 		Accept: 'application/vnd.github+json',
 	};
-	if (options?.token) {
-		headers['Authorization'] = `Bearer ${options.token}`;
-	}
 
 	const fetchOptions: RequestInit = { headers };
 	if (options?.signal) {

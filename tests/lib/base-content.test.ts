@@ -31,6 +31,19 @@ describe('getBaseContentCss', () => {
 		expect(urls).toContain(STYLES_URL);
 	});
 
+	it('fetches snippets anonymously - no options object means no Authorization header', async () => {
+		const fetchMock = vi
+			.spyOn(globalThis, 'fetch')
+			.mockResolvedValue(new Response('/* css */', { status: 200 }));
+
+		await getBaseContentCss();
+
+		for (const call of fetchMock.mock.calls) {
+			// fetch(url) - single argument confirms no options/headers were passed
+			expect(call).toHaveLength(1);
+		}
+	});
+
 	it('returns the concatenated body of every snippet that loaded', async () => {
 		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
 			const url = String(input);

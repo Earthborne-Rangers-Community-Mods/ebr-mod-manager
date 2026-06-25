@@ -4,6 +4,7 @@ import {
 	getOwnedProducts,
 	isProductLibraryConfigured,
 	setOwnedProducts,
+	clearOwnedProducts,
 	ownsAllRequiredProducts,
 } from '$lib/owned-products.js';
 
@@ -11,6 +12,22 @@ const OWNED_PRODUCTS_KEY = 'ebr-owned-products';
 
 beforeEach(() => {
 	localStorage.clear();
+});
+
+describe('clearOwnedProducts', () => {
+	it('returns the library to the unconfigured state', () => {
+		setOwnedProducts(['core-set']);
+		expect(isProductLibraryConfigured()).toBe(true);
+
+		clearOwnedProducts();
+		expect(isProductLibraryConfigured()).toBe(false);
+		expect(getOwnedProducts()).toBeNull();
+		expect(localStorage.getItem(OWNED_PRODUCTS_KEY)).toBeNull();
+	});
+
+	it('is safe when nothing is stored', () => {
+		expect(() => clearOwnedProducts()).not.toThrow();
+	});
 });
 
 describe('getOwnedProducts', () => {

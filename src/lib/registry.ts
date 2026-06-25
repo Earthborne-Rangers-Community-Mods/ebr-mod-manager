@@ -1,7 +1,5 @@
 // --- Types ---
 
-import { Capacitor } from '@capacitor/core';
-
 import {
 	RegistryFetchError,
 	ModDetailFetchError,
@@ -132,6 +130,20 @@ export function isRegistryFresh(cachedAt: number, now: number = Date.now()): boo
 	return now - cachedAt < REGISTRY_TTL_MS;
 }
 
+/**
+ * Delete the entire registry cache. Best-effort: a no-op where the Cache API is
+ * unavailable, and any failure is swallowed. The next fetchRegistry repopulates
+ * it from the network.
+ */
+export async function clearRegistryCache(): Promise<void> {
+	if (!cacheAvailable()) return;
+	try {
+		await caches.delete(CACHE_NAME);
+	} catch {
+		// Best-effort: nothing to do when the delete fails.
+	}
+}
+
 // --- Fetching ---
 
 /** Options controlling how the browse-tier registry is fetched. */
@@ -226,25 +238,16 @@ export const DESCRIPTION_FILENAME = 'About this Mod.md';
 /**
  * Fetch the About this Mod.md description page for a mod. Returns null if not found.
  *
- * When a GitHub PAT is provided, the request is routed through the GitHub Contents
- * API (via the /github-api dev proxy on web, or directly on native) with an
- * Authorization header so that private repos can be read. Without a token the
- * file is fetched anonymously from raw.githubusercontent.com, which only works
+ * The file is fetched anonymously from raw.githubusercontent.com, which works
  * for public repos.
  */
 export async function fetchDescription(
 	mod: { repoUrl: string; commitHash: string },
-	token?: string,
 ): Promise<string | null> {
-	const url = token ? contentsApiUrl(mod, DESCRIPTION_FILENAME) : modFileUrl(mod, DESCRIPTION_FILENAME);
-	const headers: Record<string, string> = {};
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-		headers['Accept'] = 'application/vnd.github.raw';
-	}
+	const url = modFileUrl(mod, DESCRIPTION_FILENAME);
 	let response: Response;
 	try {
-		response = await fetch(url, { headers });
+		response = await fetch(url);
 	} catch (err) {
 		throw new NetworkError(`Network error fetching mod description`, err);
 	}
@@ -255,25 +258,6 @@ export async function fetchDescription(
 		throw new DescriptionFetchError(url, response.status, response.statusText);
 	}
 	return response.text();
-}
-
-/**
- * Build a GitHub Contents API URL for a file in a mod repo at a pinned commit.
- * Uses the /github-api dev proxy on web (CORS-friendly) and api.github.com
- * directly on native platforms. Suitable for authenticated requests against
- * private repos.
- */
-function contentsApiUrl(
-	mod: { repoUrl: string; commitHash: string },
-	filePath: string,
-): string {
-	const { owner, repo } = parseRepoUrl(mod.repoUrl);
-	const encodedPath = filePath
-		.split('/')
-		.map((segment) => encodeURIComponent(segment))
-		.join('/');
-	const base = Capacitor.isNativePlatform() ? 'https://api.github.com' : '/github-api';
-	return `${base}/repos/${owner}/${repo}/contents/${encodedPath}?ref=${mod.commitHash}`;
 }
 
 // --- URL helpers ---

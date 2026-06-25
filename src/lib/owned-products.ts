@@ -53,6 +53,19 @@ export function setOwnedProducts(ids: Iterable<string>): void {
 }
 
 /**
+ * Forget the user's owned-products selection, returning the library to the
+ * unconfigured state (every mod treated as compatible again).
+ */
+export function clearOwnedProducts(): void {
+	if (typeof localStorage === 'undefined') return;
+	try {
+		localStorage.removeItem(OWNED_PRODUCTS_KEY);
+	} catch {
+		// Storage unavailable -- nothing to clear.
+	}
+}
+
+/**
  * Whether the user owns every product a mod requires.
  *
  * When `owned` is null (library not configured), every mod is considered

@@ -21,7 +21,6 @@
 		ZipHashMismatchError,
 		isNetworkError,
 	} from '$lib/errors.js';
-	import { getToken } from '$lib/devsettings.js';
 	import { recordDownload } from '$lib/ledger.js';
 	import { requestObsidianIntro } from '$lib/obsidian-intro.js';
 	import type { ModDetail } from '$lib/registry.js';
@@ -61,8 +60,6 @@
 		state = { step: 'downloading', progress: null };
 
 		try {
-			const token = getToken() ?? undefined;
-
 			if (method === 'vault-write') {
 				const target = await pickVaultTarget(mod.id);
 				const status = await checkVault(target);
@@ -81,7 +78,6 @@
 				}
 
 				const zipBuffer = await downloadModZip(mod, {
-					token,
 					onProgress: (p) => {
 						state = { step: 'downloading', progress: p };
 					},
@@ -118,7 +114,6 @@
 				state = { step: 'complete' };
 			} else {
 				const zipBuffer = await downloadModZip(mod, {
-					token,
 					onProgress: (p) => {
 						state = { step: 'downloading', progress: p };
 					},

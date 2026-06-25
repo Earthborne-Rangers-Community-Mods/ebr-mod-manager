@@ -7,7 +7,7 @@
 // from the persistent "Playable in Obsidian" chrome label.
 
 import { writable } from 'svelte/store';
-import { getStorageItem, setStorageItem } from '$lib/safe-storage.js';
+import { getStorageItem, setStorageItem, removeStorageItem } from '$lib/safe-storage.js';
 
 const SEEN_KEY = 'seenObsidianIntro';
 
@@ -23,6 +23,11 @@ export function hasSeenObsidianIntro(): boolean {
 export function markObsidianIntroSeen(): void {
 	// On failure the flag is never written, so the explainer shows again next time.
 	setStorageItem(SEEN_KEY, 'true');
+}
+
+/** Forget that the user has seen the explainer, so it shows again next download. */
+export function clearObsidianIntroSeen(): void {
+	removeStorageItem(SEEN_KEY);
 }
 
 /** Whether the shared explainer modal is currently open. */

@@ -1,61 +1,65 @@
 <script lang="ts">
-	import {
-		getToken,
-		setToken,
-		clearToken,
-		getBaseContentToken,
-		setBaseContentToken,
-		clearBaseContentToken,
-	} from '$lib/devsettings.js';
+	import { clearRegistryCache } from '$lib/registry.js';
+	import { clearLedger } from '$lib/ledger.js';
+	import { clearOwnedProducts } from '$lib/owned-products.js';
+	import { clearObsidianIntroSeen } from '$lib/obsidian-intro.js';
+	import { clearStoredTheme } from '$lib/theme.js';
 	import * as m from '$lib/paraglide/messages.js';
 
-	let tokenInput = $state(getToken() ?? '');
-	let saved = $state(false);
-	let hasToken = $state(!!getToken());
-
-	let baseContentTokenInput = $state(getBaseContentToken() ?? '');
-	let baseContentSaved = $state(false);
-	let hasBaseContentToken = $state(!!getBaseContentToken());
-
-	function handleSave() {
-		const trimmed = tokenInput.trim();
-		if (trimmed) {
-			setToken(trimmed);
-		} else {
-			clearToken();
-		}
-		hasToken = !!getToken();
-		saved = true;
-		setTimeout(() => (saved = false), 1500);
-	}
-
-	function handleClear() {
-		clearToken();
-		tokenInput = '';
-		hasToken = false;
-		saved = false;
-	}
-
-	function handleSaveBaseContent() {
-		const trimmed = baseContentTokenInput.trim();
-		if (trimmed) {
-			setBaseContentToken(trimmed);
-		} else {
-			clearBaseContentToken();
-		}
-		hasBaseContentToken = !!getBaseContentToken();
-		baseContentSaved = true;
-		setTimeout(() => (baseContentSaved = false), 1500);
-	}
-
-	function handleClearBaseContent() {
-		clearBaseContentToken();
-		baseContentTokenInput = '';
-		hasBaseContentToken = false;
-		baseContentSaved = false;
-	}
-
 	let { onclose }: { onclose: () => void } = $props();
+
+	interface CacheItem {
+		key: string;
+		label: string;
+		hint: string;
+		clear: () => void | Promise<void>;
+	}
+
+	const items: CacheItem[] = [
+		{
+			key: 'registry',
+			label: 'Registry cache',
+			hint: 'The cached copy of the browse-tier registry. Clearing forces a fresh fetch on the next visit.',
+			clear: clearRegistryCache,
+		},
+		{
+			key: 'ledger',
+			label: 'Download ledger',
+			hint: 'The record of which mod versions were installed. Clearing removes all update badges.',
+			clear: clearLedger,
+		},
+		{
+			key: 'owned-products',
+			label: 'Owned-products library',
+			hint: 'The products you marked as owned. Clearing returns the filter to "all products owned".',
+			clear: clearOwnedProducts,
+		},
+		{
+			key: 'obsidian-intro',
+			label: 'Obsidian intro flag',
+			hint: 'Whether the first-download Obsidian explainer has been seen. Clearing makes it show again.',
+			clear: clearObsidianIntroSeen,
+		},
+		{
+			key: 'theme',
+			label: 'Theme preference',
+			hint: 'Your saved light/dark choice. Clearing falls back to the system theme.',
+			clear: clearStoredTheme,
+		},
+	];
+
+	let clearedKey = $state<string | null>(null);
+	let clearedTimer: ReturnType<typeof setTimeout> | null = null;
+
+	async function handleClear(item: CacheItem) {
+		await item.clear();
+		clearedKey = item.key;
+		if (clearedTimer !== null) clearTimeout(clearedTimer);
+		clearedTimer = setTimeout(() => {
+			clearedKey = null;
+			clearedTimer = null;
+		}, 1500);
+	}
 </script>
 
 <aside class="dev-panel">
@@ -67,110 +71,24 @@
 		{m.dev_panel_explanation()}
 	</p>
 
-	<details class="dev-pat-help">
-		<summary>How to create a fine-grained PAT</summary>
-		<p class="dev-hint">
-			Both tokens below are
-			<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">
-				fine-grained personal access tokens</a>.
-			Same general flow for both - only <em>Resource owner</em> and
-			<em>Repository access</em> change.
-		</p>
-		<ol class="dev-steps">
-			<li>
-				Open
-				<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">
-					github.com/settings/personal-access-tokens/new</a>.
-			</li>
-			<li>
-				Set <em>Resource owner</em>:
-				<ul>
-					<li><strong>Per-mod token</strong> - your own GitHub user (the mod author's account).</li>
-					<li>
-						<strong>Base-content token</strong> -
-						<code>Earthborne-Rangers-Community-Mods</code>.
-					</li>
-				</ul>
-			</li>
-			<li>
-				Under <em>Repository access</em>, choose
-				<em>Only select repositories</em> and pick:
-				<ul>
-					<li><strong>Per-mod token</strong> - the mod's content repo.</li>
-					<li><strong>Base-content token</strong> - <code>ebr-mod-base-content</code>.</li>
-				</ul>
-			</li>
-			<li>
-				Under <em>Permissions -> Repository permissions</em>, set
-				<em>Contents</em> to <em>Read-only</em>. Leave everything else at
-				<em>No access</em>.
-			</li>
-			<li>
-				Submit. For the org-scoped base-content token, an org admin must
-				<em>approve</em> the request before it works (visible under
-				Org Settings -> Personal access tokens -> Pending requests).
-			</li>
-			<li>
-				Copy the <code>github_pat_...</code> value and paste it into the
-				matching field below.
-			</li>
-		</ol>
-	</details>
-
 	<div class="dev-body">
-		<label class="dev-label">
-			Per-mod repo token
-			<p class="dev-hint">
-				Used to read the mod's <code>About this Mod.md</code> and other
-				files from its content repo at the pinned commit.
-			</p>
-			<div class="token-row">
-				<input
-					type="password"
-					class="dev-input"
-					placeholder="github_pat_..."
-					bind:value={tokenInput}
-				/>
-				<button class="dev-btn" onclick={handleSave}>Save</button>
-				<button class="dev-btn secondary" onclick={handleClear}>Clear</button>
-			</div>
-			{#if saved}
-				<span class="dev-saved">Saved</span>
-			{/if}
-			{#if hasToken}
-				<span class="dev-status set">Token set</span>
-			{:else}
-				<span class="dev-status unset">No token</span>
-			{/if}
-		</label>
-
-		<label class="dev-label">
-			Base-content (org) token
-			<p class="dev-hint">
-				Used to fetch the EBR base-content CSS snippets from
-				<code>Earthborne-Rangers-Community-Mods/ebr-mod-base-content</code>
-				while that repo is private. Separate from the per-mod token because
-				it needs org-scope access.
-			</p>
-			<div class="token-row">
-				<input
-					type="password"
-					class="dev-input"
-					placeholder="github_pat_..."
-					bind:value={baseContentTokenInput}
-				/>
-				<button class="dev-btn" onclick={handleSaveBaseContent}>Save</button>
-				<button class="dev-btn secondary" onclick={handleClearBaseContent}>Clear</button>
-			</div>
-			{#if baseContentSaved}
-				<span class="dev-saved">Saved</span>
-			{/if}
-			{#if hasBaseContentToken}
-				<span class="dev-status set">Token set</span>
-			{:else}
-				<span class="dev-status unset">No token</span>
-			{/if}
-		</label>
+		<span class="dev-section-title">Clear cached values</span>
+		<ul class="cache-list">
+			{#each items as item (item.key)}
+				<li class="cache-item">
+					<div class="cache-text">
+						<span class="cache-label">{item.label}</span>
+						<p class="dev-hint">{item.hint}</p>
+					</div>
+					<div class="cache-action">
+						<button class="dev-btn" onclick={() => handleClear(item)}>Clear</button>
+						{#if clearedKey === item.key}
+							<span class="dev-cleared">Cleared</span>
+						{/if}
+					</div>
+				</li>
+			{/each}
+		</ul>
 	</div>
 </aside>
 
@@ -185,6 +103,8 @@
 		padding: var(--spacing-sm) var(--spacing-md);
 		z-index: 1000;
 		font-size: var(--font-size-sm);
+		max-height: 70vh;
+		overflow-y: auto;
 	}
 
 	.dev-header {
@@ -222,13 +142,45 @@
 		margin-bottom: var(--spacing-sm);
 	}
 
-	.dev-label {
+	.dev-section-title {
 		display: block;
 		color: var(--color-text-muted);
 		font-size: var(--font-size-xs);
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
+		margin-bottom: var(--spacing-xs);
+	}
+
+	.cache-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.cache-item {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: var(--spacing-md);
+		padding: var(--spacing-xs) 0;
+	}
+
+	.cache-item + .cache-item {
+		border-top: 1px solid var(--color-border);
+	}
+
+	.cache-text {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.cache-label {
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: var(--color-text-muted);
 	}
 
 	.dev-hint {
@@ -236,93 +188,15 @@
 		text-transform: none;
 		letter-spacing: normal;
 		line-height: 1.4;
-		margin: var(--spacing-xs) 0;
-	}
-
-	.dev-hint a {
-		color: var(--color-primary);
-	}
-
-	.dev-steps {
-		font-weight: 400;
-		text-transform: none;
-		letter-spacing: normal;
-		line-height: 1.4;
-		margin: var(--spacing-xs) 0 var(--spacing-xs) 1.25rem;
-		padding: 0;
-	}
-
-	.dev-steps li {
-		margin-bottom: var(--spacing-xs);
-	}
-
-	.dev-steps ul {
-		font-weight: 400;
-		text-transform: none;
-		letter-spacing: normal;
-		margin: 2px 0 var(--spacing-xs) var(--spacing-md);
-		padding: 0;
-		list-style: disc;
-	}
-
-	.dev-steps ul li {
-		margin-bottom: 2px;
-	}
-
-	.dev-pat-help {
-		margin-bottom: var(--spacing-sm);
-		font-size: var(--font-size-xs);
+		margin: 2px 0 0;
 		color: var(--color-text-muted);
 	}
 
-	.dev-pat-help summary {
-		cursor: pointer;
-		color: var(--color-primary);
-		font-weight: 600;
-		padding: var(--spacing-xs) 0;
-	}
-
-	.dev-pat-help summary:hover {
-		text-decoration: underline;
-	}
-
-	.dev-steps a {
-		color: var(--color-primary);
-	}
-
-	.dev-steps code,
-	.dev-hint code {
-		font-family: var(--font-mono, monospace);
-		font-size: 0.85em;
-		background: var(--color-bg);
-		border: 1px solid var(--color-border);
-		border-radius: 3px;
-		padding: 0 var(--spacing-xs);
-	}
-
-	.dev-body > .dev-label + .dev-label {
-		margin-top: var(--spacing-sm);
-		padding-top: var(--spacing-sm);
-		border-top: 1px solid var(--color-border);
-	}
-
-	.token-row {
+	.cache-action {
 		display: flex;
-		gap: var(--spacing-xs);
-		margin-top: var(--spacing-xs);
 		align-items: center;
-	}
-
-	.dev-input {
-		font: inherit;
-		font-size: var(--font-size-sm);
-		padding: var(--spacing-xs) var(--spacing-sm);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius);
-		background: var(--color-bg);
-		color: var(--color-text);
-		flex: 1;
-		max-width: 20rem;
+		gap: var(--spacing-sm);
+		flex-shrink: 0;
 	}
 
 	.dev-btn {
@@ -336,32 +210,12 @@
 		cursor: pointer;
 	}
 
-	.dev-btn.secondary {
-		background: var(--color-border);
-		color: var(--color-text-muted);
-	}
-
 	.dev-btn:hover {
 		opacity: 0.85;
 	}
 
-	.dev-saved {
+	.dev-cleared {
 		color: var(--color-success);
-		margin-left: var(--spacing-sm);
 		font-size: var(--font-size-xs);
-	}
-
-	.dev-status {
-		display: inline-block;
-		margin-top: var(--spacing-xs);
-		font-size: var(--font-size-xs);
-	}
-
-	.dev-status.set {
-		color: var(--color-success);
-	}
-
-	.dev-status.unset {
-		color: var(--color-text-muted);
 	}
 </style>

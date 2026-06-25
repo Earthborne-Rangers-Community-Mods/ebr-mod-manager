@@ -4,6 +4,7 @@ import { get } from 'svelte/store';
 import {
 	hasSeenObsidianIntro,
 	markObsidianIntroSeen,
+	clearObsidianIntroSeen,
 	requestObsidianIntro,
 	showObsidianIntro,
 	confirmObsidianIntro,
@@ -24,6 +25,17 @@ describe('seenObsidianIntro flag', () => {
 	it('reports seen after marking', () => {
 		markObsidianIntroSeen();
 		expect(hasSeenObsidianIntro()).toBe(true);
+	});
+
+	it('reports not seen again after clearing', () => {
+		markObsidianIntroSeen();
+		clearObsidianIntroSeen();
+		expect(hasSeenObsidianIntro()).toBe(false);
+		expect(localStorage.getItem('seenObsidianIntro')).toBeNull();
+	});
+
+	it('is safe when nothing is stored', () => {
+		expect(() => clearObsidianIntroSeen()).not.toThrow();
 	});
 
 	it('treats a non-"true" stored value as not seen', () => {
