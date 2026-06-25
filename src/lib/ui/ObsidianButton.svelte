@@ -2,7 +2,7 @@
 	import { Capacitor } from '@capacitor/core';
 	import { asset } from '$app/paths';
 	import * as m from '$lib/paraglide/messages.js';
-	import { OBSIDIAN_DOWNLOAD_URL } from '$lib/obsidian-intro.js';
+	import { OBSIDIAN_DOWNLOAD_URL, hasSeenObsidianIntro } from '$lib/obsidian-intro.js';
 
 	// Desktop opens the vault picker; native (Android) opens the app, since
 	// Android does not support obsidian://choose-vault
@@ -11,7 +11,15 @@
 	// We cannot detect whether Obsidian is installed. Tapping the
 	// button either launches Obsidian or does nothing; revealing the fallback
 	// after a tap covers the "nothing happened" case without any detection.
+	// Users who confirmed they already own Obsidian ("I already have it" in the
+	// explainer) don't need the install fallback, so we skip it for them.
 	let showFallback = $state(false);
+
+	function handleObsidianClick() {
+		if (!hasSeenObsidianIntro()) {
+			showFallback = true;
+		}
+	}
 </script>
 
 <div class="obsidian-control">
@@ -20,7 +28,7 @@
 		{href}
 		aria-label={m.open_obsidian()}
 		title={m.open_obsidian()}
-		onclick={() => (showFallback = true)}
+		onclick={handleObsidianClick}
 	>
 		<img src={asset('/obsidian-logo.svg')} alt="" class="obsidian-logo" aria-hidden="true" />
 	</a>
