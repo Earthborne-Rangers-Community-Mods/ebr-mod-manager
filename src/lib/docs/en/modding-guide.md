@@ -4,25 +4,28 @@ This guide covers building or customizing your campaign guide and packaging your
 
 ## What you'll need
 
-- **[Obsidian](https://obsidian.md)** (free) - to write and view your mod.
-- **[NodeJS](https://nodejs.org/en/download)** (free) - to run the mod tools. (scroll down to the button that gives you the installer).
-- **[Git](https://git-scm.com)** (free) - to track your changes.
-- **[GitHub](https://github.com) account** (free) - where your mod lives online.
+All of these tools are free and lightweight.
+
+- **[Obsidian](https://obsidian.md)** - to write and view your mod.
+- **[NodeJS](https://nodejs.org/en/download)** - to run the mod tools. (scroll down to the button that gives you the installer).
+- **[Git](https://git-scm.com)** - to track your changes.
+- **[GitHub](https://github.com) account** - where your mod lives online.
 
 ## Step 1: Install the tools
 
 1. Install Obsidian, Node.js, and Git using the links above. Use the default settings for each installer.
-2. Open a terminal (on Windows: search for "Terminal" in the Start menu; on Mac: open Terminal from Applications > Utilities).
-3. Install the EBR mod tools in any folder you like (use the `cd` command to change folders):
+2. Create an account on GitHub, if you don't already have one.
+3. Open a terminal (on Windows: search for "Terminal" in the Start menu; on Mac: open Terminal from Applications > Utilities).
+4. Install the EBR mod tools in any folder you like (use the `cd` command to change folders):
 
 ```
-git clone https://github.com/earthborne-rangers-modding/ebr-mod-tools.git
+git clone https://github.com/Earthborne-Rangers-Community-Mods/ebr-mod-tools.git
 cd ebr-mod-tools
 npm install
 npm link
 ```
 
-This downloads the tools to your machine, installs their dependencies, and makes the `ebr` command available globally on your system.
+This downloads the mod tools to your machine, installs their dependencies, and makes the `ebr` command available globally on your system.
 
 4. Verify it worked:
 
@@ -32,7 +35,7 @@ ebr --version
 
 You should see a version number. If you get an error, close and reopen your terminal, then try again.
 
-## Step 2: Set up your GitHub account
+## Step 2: Set up the mod tools
 
 Run the setup command and follow its prompts:
 
@@ -40,14 +43,13 @@ Run the setup command and follow its prompts:
 ebr setup
 ```
 
-This walks you through a few things:
+The first time you run it, if you've never used `git` before, a GitHub sign-in window may open (use the account you created earlier). Then setup helps you with:
 
-1. **Forking the base content repo** - click one button on GitHub to create your own copy of the mod template.
-2. **Forking the registry repo** - same thing, one click. This is where you'll publish your mod when it's done.
-3. **Creating a personal access token** - a password that lets the tools talk to GitHub on your behalf. The tool tells you exactly which settings to use.
-4. **Author details** - decide what you'll use as your public author name and discord account (optional) for your mods.
+1. **Confirming your GitHub account** - setup detects your GitHub username from that sign-in and asks you to confirm it. This is the GitHub account you'll use to back up and publish your mods.
+2. **Forking the base mod and registry projects** - a *fork* is your own personal copy of a project on GitHub. Setup automatically creates two forks for you which are used by the tools to help you create and publish your mods.
+3. **Deciding author details** - decide what you'll use as your public author name and discord account (optional) for your mods.
 
-Once setup completes, you'll never have to do this again!
+You only have to run this command once!
 
 ## Step 3: Create your mod
 
@@ -65,7 +67,7 @@ The tool asks you a series of questions about your mod (you can change your answ
 - **Campaigns** - which official campaign(s) (if any) your mod modifies (eg. Lure of the Valley, Legacy of the Ancestors, etc.)
 - **Products** - which products are required to play your mod, or optional (supported by your mod but not needed)
 
-After answering, the tool creates a folder with your mod's starting files and opens it as an Obsidian vault.
+After answering, the tool creates a folder with your mod's starting files, ready to open in Obsidian (the next step).
 
 ### Mod types
 
@@ -105,13 +107,13 @@ Feel free to drop images or pdfs directly into folders in Obsidian; these will g
 
 ## Step 5: Save your work
 
-When you're happy with your changes (or want to back them up), run:
+Whenever you finish a chunk of work and want to back up your files, run:
 
 ```
 ebr save
 ```
 
-This asks for a short description of what you've changed, and backs everything up on your personal GitHub account. You can run this as often as you like.
+This asks for a short description of what you've changed, and backs everything up to your fork on GitHub. You should run this as often as you like!
 
 ## Step 6: Publish to the registry
 
@@ -121,13 +123,13 @@ When your mod is ready for players to find:
 ebr publish
 ```
 
-This creates a listing in the mod registry and opens a "pull request" in GitHub for review. Once a maintainer approves it, your mod appears in the mod manager for everyone to install.
+This creates a listing in the mod registry and opens a "pull request" (a request for the maintainers to review and add your mod) on GitHub. Once a maintainer approves it, your mod appears in the mod manager for everyone to install!
 
 ## Command reference
 
 | Command | What it does |
 |---|---|
-| `ebr setup` | One-time GitHub account setup |
+| `ebr setup` | One-time GitHub and mod tools setup |
 | `ebr new` | Create a new mod |
 | `ebr save` | Save and back up your changes |
 | `ebr publish` | Submit your mod to the registry |
