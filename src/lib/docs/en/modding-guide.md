@@ -22,10 +22,11 @@ All of these tools are free and lightweight.
 git clone https://github.com/Earthborne-Rangers-Community-Mods/ebr-mod-tools.git
 cd ebr-mod-tools
 npm install
-npm link
+npm run build --workspace packages/cli
+npm link --workspace packages/cli
 ```
 
-This downloads the mod tools to your machine, installs their dependencies, and makes the `ebr` command available globally on your system.
+This downloads the mod tools to your machine, installs their dependencies, builds them, and makes the `ebr` command available globally on your system.
 
 4. Verify it worked:
 
