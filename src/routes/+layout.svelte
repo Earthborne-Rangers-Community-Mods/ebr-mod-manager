@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { resolve, asset } from '$app/paths';
 	import '../app.css';
 	import * as m from '$lib/paraglide/messages.js';
 	import DevPanel from '$lib/ui/DevPanel.svelte';
@@ -78,7 +78,10 @@
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <header class="app-header" onclick={handleHeaderTap}>
 	<div class="container header-inner">
-		<a href="{resolve('/')}" class="logo">{m.app_title()}</a>
+		<a href="{resolve('/')}" class="logo">
+			<img src={asset('/icon.png')} alt="" class="logo-icon" aria-hidden="true" />
+			<span>{m.app_title()}</span>
+		</a>
 		<div class="header-actions">
 			<ObsidianButton />
 			<ThemeToggle />
@@ -124,11 +127,20 @@
 	}
 
 	.logo {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--spacing-sm);
 		font-family: var(--font-display);
 		font-size: var(--font-size-md);
 		font-weight: 700;
 		color: var(--color-accent);
 		letter-spacing: 0.01em;
+	}
+
+	.logo-icon {
+		width: 2rem;
+		height: 2rem;
+		flex-shrink: 0;
 	}
 
 	.logo:hover {
