@@ -1,6 +1,6 @@
 Want to build your own Earthborne Rangers mod? This is how you do it! No coding experience is required, but (until Sunberry Keeper finishes the graphical version of the tools) it helps if you're already comfortable with using the terminal on your computer.
 
-This guide covers building or customizing your campaign guide and packaging your mod for others to download. If you want to make custom cards, you'll need the [Strange Eons](https://cgjennings.ca/eons/) plugin. (Check the Earthborne Gamers discord server for instructions on using it.) You can include custom-made cards in your mod package, but creating them is outside the scope of this guide.
+This guide covers building or customizing your campaign guide and packaging your mod for others to download. If you want to make custom cards, you'll need the [Strange Eons](https://cgjennings.ca/eons/) plugin. (Check the Earthborne Gamers discord server for instructions on using it.) You can include custom-made cards in your mod package, but creating them is outside the scope of this guide. To create a custom Campaign Tracker sheet, use the [Custom Campaign Tracker](https://earthborne-rangers-community-mods.github.io/ebr-tracker-maker/) tool to create a PDF, and then include that PDF in your mod package.
 
 ## What you'll need
 
