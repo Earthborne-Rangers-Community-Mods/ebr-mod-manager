@@ -209,10 +209,9 @@
 			{#each filteredMods as mod (mod.id)}
 				<li class="mod-card">
 					<a href="{resolve('/mods/[id]', { id: mod.id })}" class="mod-card-link">
+						{#if mod.icon}<span class="mod-icon" aria-hidden="true">{mod.icon}</span>{/if}
 						<div class="mod-info">
-							<h2 class="mod-name">
-								{#if mod.icon}<span class="mod-icon" aria-hidden="true">{mod.icon}</span>{/if}{mod.name}
-							</h2>
+							<h2 class="mod-name">{mod.name}</h2>
 							<p class="mod-author">{mod.author ? m.mod_detail_author({ author: mod.author }) : m.mod_detail_unknown_author()}</p>
 							<p class="mod-description">{mod.description}</p>
 						</div>
@@ -349,7 +348,9 @@
 	}
 
 	.mod-card-link {
-		display: block;
+		display: flex;
+		align-items: center;
+		gap: var(--spacing-md);
 		padding: var(--spacing-sm) var(--spacing-md);
 		color: inherit;
 		text-decoration: none;
@@ -361,9 +362,9 @@
 	}
 
 	.mod-icon {
-		font-size: 1.1em;
+		flex-shrink: 0;
+		font-size: 1.75rem;
 		line-height: 1;
-		margin-right: var(--spacing-xs);
 	}
 
 	.mod-info {

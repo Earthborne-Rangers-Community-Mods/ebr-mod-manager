@@ -1,6 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
-  "app_title": "Earthborne Rangers Mod Manager",
+  "app_title": "Earthborne Rangers Mods",
   "browse_mods": "Browse Mods",
   "open_obsidian": "Open Obsidian",
   "change_vault_folder": "Change Folder",
