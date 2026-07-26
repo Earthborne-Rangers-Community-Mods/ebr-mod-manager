@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { asset } from '$app/paths';
 	import * as m from '$lib/paraglide/messages.js';
 	import {
 		fetchModDetail,
@@ -108,7 +109,7 @@
 						</p>
 						{#if mod.authorDiscord}
 							<p class="discord-handle">
-								<span class="discord-logo" aria-label="Discord" role="img"></span>
+								<span class="discord-logo" style={`--discord-mask: url("${asset('/discord-logo.svg')}")`} aria-label="Discord" role="img"></span>
 								{mod.authorDiscord}
 							</p>
 						{/if}
@@ -248,11 +249,11 @@
 		width: 1.1em;
 		height: 1.1em;
 		background-color: currentColor;
-		mask-image: url('/discord-logo.svg');
+		mask-image: var(--discord-mask);
 		mask-repeat: no-repeat;
 		mask-position: center;
 		mask-size: contain;
-		-webkit-mask-image: url('/discord-logo.svg');
+		-webkit-mask-image: var(--discord-mask);
 		-webkit-mask-repeat: no-repeat;
 		-webkit-mask-position: center;
 		-webkit-mask-size: contain;

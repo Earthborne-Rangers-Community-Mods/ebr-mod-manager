@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { asset } from '$app/paths';
 	import { getTheme, toggleTheme, type Theme } from '$lib/theme.js';
 
 	let theme = $state<Theme>(getTheme());
@@ -15,23 +16,11 @@
 	aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
 	title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
 >
-	{#if theme === 'light'}
-		<svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-			<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-		</svg>
-	{:else}
-		<svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-			<circle cx="12" cy="12" r="5"/>
-			<line x1="12" y1="1" x2="12" y2="3"/>
-			<line x1="12" y1="21" x2="12" y2="23"/>
-			<line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-			<line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-			<line x1="1" y1="12" x2="3" y2="12"/>
-			<line x1="21" y1="12" x2="23" y2="12"/>
-			<line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-			<line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-		</svg>
-	{/if}
+	<span
+		class="theme-icon"
+		style={`--icon: url("${asset(theme === 'light' ? '/moon.svg' : '/sun.svg')}")`}
+		aria-hidden="true"
+	></span>
 </button>
 
 <style>
@@ -57,7 +46,11 @@
 	}
 
 	.theme-icon {
+		display: block;
 		width: 1.25rem;
 		height: 1.25rem;
+		background-color: currentColor;
+		mask: var(--icon) no-repeat center / contain;
+		-webkit-mask: var(--icon) no-repeat center / contain;
 	}
 </style>
