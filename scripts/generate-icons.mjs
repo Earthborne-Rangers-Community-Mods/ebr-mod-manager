@@ -1,15 +1,16 @@
-// Generates Android launcher icons from the SVG favicon.
+// Generates Android and iOS launcher icons from the SVG app logo.
 // Run with: node scripts/generate-icons.mjs
 
 import sharp from 'sharp';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const svgPath = join(root, 'static', 'favicon.svg');
+const svgPath = join(root, 'static', 'ebr-gear-gradient.svg');
 const resDir = join(root, 'android', 'app', 'src', 'main', 'res');
+const iosIconDir = join(root, 'ios', 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset');
 
 const svgBuffer = readFileSync(svgPath);
 
@@ -32,6 +33,12 @@ const foregroundSizes = {
 };
 
 async function generate() {
+	await sharp(svgBuffer)
+		.resize(180, 180)
+		.png()
+		.toFile(join(root, 'static', 'apple-touch-icon.png'));
+	console.log('static/apple-touch-icon.png (180x180)');
+
 	for (const [folder, size] of Object.entries(launcherSizes)) {
 		const outDir = join(resDir, folder);
 
@@ -75,6 +82,14 @@ async function generate() {
 			.png()
 			.toFile(join(outDir, 'ic_launcher_foreground.png'));
 		console.log(`${folder}/ic_launcher_foreground.png (${size}x${size})`);
+	}
+
+	if (existsSync(iosIconDir)) {
+		await sharp(svgBuffer)
+			.resize(1024, 1024)
+			.png()
+			.toFile(join(iosIconDir, 'AppIcon-512@2x.png'));
+		console.log('ios/AppIcon.appiconset/AppIcon-512@2x.png (1024x1024)');
 	}
 
 	console.log('Done!');

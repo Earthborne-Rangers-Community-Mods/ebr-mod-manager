@@ -11,13 +11,16 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cap:sync": "npm run build && npx cap sync android",
-    "cap:open": "npx cap open android"
+    "icons:generate": "node scripts/generate-icons.mjs",
+    "cap:sync": "npm run icons:generate && npm run build && npx cap sync",
+    "cap:open": "npx cap open android",
+    "cap:open:ios": "npx cap open ios"
   },
   "license": "MIT",
   "devDependencies": {
-    "@capacitor/android": "^8.3.1",
-    "@capacitor/cli": "^8.3.1",
+    "@capacitor/android": "8.5.0",
+    "@capacitor/cli": "8.5.0",
+    "@capacitor/ios": "8.5.0",
     "@inlang/paraglide-js": "^2.21.0",
     "@sveltejs/adapter-static": "^3.0.6",
     "@sveltejs/kit": "^2.9.0",
@@ -34,7 +37,7 @@
   },
   "dependencies": {
     "@capacitor/browser": "^8.0.3",
-    "@capacitor/core": "^8.3.1",
+    "@capacitor/core": "8.5.0",
     "@capacitor/filesystem": "^8.1.2",
     "markdown-it": "^14.1.1",
     "markdown-it-task-lists": "^2.1.1"

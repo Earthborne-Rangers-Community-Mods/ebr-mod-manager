@@ -1,6 +1,6 @@
 ﻿# ebr-mod-manager
 
-A web app for browsing and downoading community mods for Earthborne Rangers. Built with **SvelteKit + adapter-static**, hosted on GitHub Pages.
+A web app for browsing and downloading community mods for Earthborne Rangers. Built with **SvelteKit + adapter-static**, hosted on GitHub Pages.
 
 ## What it does
 
@@ -112,7 +112,7 @@ To get hot-reload on a physical device while developing:
 #### Building a Release APK
 
 ```powershell
-# Build and sync web assets
+# Generate icons, build, and sync web assets
 npm run cap:sync
 
 # Open Android Studio
@@ -127,3 +127,14 @@ To sideload the APK onto a phone, copy it via USB or use:
 ```powershell
 adb install android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+### Building for iOS
+
+On macOS with Xcode installed, run:
+
+```powershell
+npm run cap:sync
+npm run cap:open:ios
+```
+
+Build and run the `App` target from Xcode.

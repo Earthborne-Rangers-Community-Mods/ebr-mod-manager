@@ -79,7 +79,7 @@
 <header class="app-header" onclick={handleHeaderTap}>
 	<div class="container header-inner">
 		<a href="{resolve('/')}" class="logo">
-			<img src={asset('/icon.png')} alt="" class="logo-icon" aria-hidden="true" />
+			<img src={asset('/ebr-gear-gradient.svg')} alt="" class="logo-icon" aria-hidden="true" />
 			<span>{m.app_title()}</span>
 		</a>
 		<div class="header-actions">
