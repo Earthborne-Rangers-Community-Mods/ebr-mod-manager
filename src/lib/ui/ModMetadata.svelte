@@ -41,10 +41,10 @@
 			{/if}
 			{#if mod.safeToAddMidCampaign}
 				<dt>{m.mod_detail_mid_campaign_safety()}</dt>
-				<dd class="safety-safe">&#x1f6e1;&#xfe0f; {m.mod_detail_safe_mid_campaign()}</dd>
+				<dd>{m.mod_detail_safe_mid_campaign()}</dd>
 			{:else}
 				<dt>{m.mod_detail_mid_campaign_safety()}</dt>
-				<dd class="safety-unsafe">&#x26a0;&#xfe0f; {mod.midCampaignNotes || m.mod_detail_not_safe_mid_campaign()}</dd>
+				<dd>{mod.midCampaignNotes || m.mod_detail_not_safe_mid_campaign()}</dd>
 			{/if}
 		</dl>
 	</div>
@@ -162,19 +162,10 @@
 		line-height: var(--line-height-normal);
 	}
 
-	.safety-safe {
-		color: var(--color-success);
-	}
-
-	.safety-unsafe {
-		color: var(--color-error);
-	}
-
 	.meta-section h3 {
 		font-family: var(--font-display);
 		font-size: var(--font-size-sm);
-		font-weight: 600;
-		letter-spacing: 0.04em;
+		font-weight: var(--font-weight-medium);
 		text-transform: uppercase;
 		margin-bottom: var(--spacing-sm);
 		color: var(--color-text-muted);

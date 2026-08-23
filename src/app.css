@@ -34,7 +34,7 @@
 
 html {
 	font-family: var(--font-body);
-	font-size: 16px;
+	font-size: var(--font-size-base);
 	line-height: var(--line-height-normal);
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
@@ -64,6 +64,11 @@ body {
 	--font-size-md: 1.125rem;  /* 18px */
 	--font-size-lg: 1.5rem;    /* 24px */
 	--font-size-xl: 2rem;      /* 32px */
+
+	/* Font weights */
+	--font-weight-regular: 400;
+	--font-weight-medium: 600;
+	--font-weight-bold: 700;
 
 	/* Line heights */
 	--line-height-tight: 1.25;
@@ -181,12 +186,12 @@ h1, h2, h3, h4 {
 
 h1 {
 	font-size: var(--font-size-xl);
-	font-weight: 700;
+	font-weight: var(--font-weight-bold);
 }
 
 h2 {
 	font-size: var(--font-size-lg);
-	font-weight: 600;
+	font-weight: var(--font-weight-medium);
 }
 
 a {
@@ -207,7 +212,7 @@ button {
 	border: none;
 	border-radius: var(--radius);
 	padding: var(--spacing-sm) var(--spacing-md);
-	font-weight: 600;
+	font-weight: var(--font-weight-medium);
 	font-size: var(--font-size-sm);
 	min-height: 44px;
 	background: var(--color-primary);
@@ -294,7 +299,7 @@ button:disabled {
 	background: var(--color-primary);
 	color: var(--color-primary-text);
 	text-transform: none;
-	font-weight: 600;
+	font-weight: var(--font-weight-medium);
 }
 
 /* --- Status messages --- */
@@ -342,7 +347,7 @@ button:disabled {
 }
 
 .markdown-content code {
-	font-size: 0.9em;
+	font-size: var(--font-size-sm);
 }
 
 .markdown-content table {
@@ -361,7 +366,7 @@ button:disabled {
 
 .markdown-content th {
 	background: var(--color-surface);
-	font-weight: 600;
+	font-weight: var(--font-weight-medium);
 }
 
 .markdown-content a {

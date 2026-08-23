@@ -306,7 +306,7 @@
 
 	.filter-toggles-label {
 		font-size: var(--font-size-sm);
-		font-weight: 600;
+		font-weight: var(--font-weight-medium);
 		color: var(--color-text-muted);
 		margin-right: var(--spacing-xs);
 	}
@@ -358,7 +358,7 @@
 
 	.mod-icon {
 		flex-shrink: 0;
-		font-size: 1.75rem;
+		font-size: var(--font-size-lg);
 		line-height: 1;
 	}
 
@@ -370,7 +370,7 @@
 	.mod-name {
 		font-family: var(--font-display);
 		font-size: var(--font-size-base);
-		font-weight: 600;
+		font-weight: var(--font-weight-medium);
 		margin-bottom: var(--spacing-xs);
 	}
 

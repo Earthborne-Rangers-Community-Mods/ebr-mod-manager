@@ -115,10 +115,9 @@
 	}
 
 	.dev-title {
-		font-weight: 700;
+		font-weight: var(--font-weight-bold);
 		color: var(--color-primary);
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
 	}
 
 	.dev-close {
@@ -146,9 +145,8 @@
 		display: block;
 		color: var(--color-text-muted);
 		font-size: var(--font-size-xs);
-		font-weight: 600;
+		font-weight: var(--font-weight-medium);
 		text-transform: uppercase;
-		letter-spacing: 0.03em;
 		margin-bottom: var(--spacing-xs);
 	}
 
@@ -177,16 +175,14 @@
 
 	.cache-label {
 		font-size: var(--font-size-xs);
-		font-weight: 600;
+		font-weight: var(--font-weight-medium);
 		text-transform: uppercase;
-		letter-spacing: 0.03em;
 		color: var(--color-text-muted);
 	}
 
 	.dev-hint {
-		font-weight: 400;
+		font-weight: var(--font-weight-regular);
 		text-transform: none;
-		letter-spacing: normal;
 		line-height: 1.4;
 		margin: 2px 0 0;
 		color: var(--color-text-muted);

@@ -41,7 +41,7 @@
 	.filter-group legend {
 		font-family: var(--font-display);
 		font-size: var(--font-size-sm);
-		font-weight: 600;
+		font-weight: var(--font-weight-medium);
 		padding: 0;
 		margin-bottom: var(--spacing-xs);
 	}

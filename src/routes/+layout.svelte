@@ -132,9 +132,8 @@
 		gap: var(--spacing-sm);
 		font-family: var(--font-display);
 		font-size: var(--font-size-md);
-		font-weight: 700;
+		font-weight: var(--font-weight-bold);
 		color: var(--color-accent);
-		letter-spacing: 0.01em;
 	}
 
 	.logo-icon {

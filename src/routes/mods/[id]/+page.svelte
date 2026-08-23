@@ -175,7 +175,7 @@
 	}
 
 	.mod-icon {
-		font-size: 1.1em;
+		font-size: var(--font-size-base);
 		line-height: 1;
 		margin-right: var(--spacing-xs);
 	}
@@ -183,7 +183,7 @@
 	.mod-name {
 		font-family: var(--font-display);
 		font-size: var(--font-size-lg);
-		font-weight: 700;
+		font-weight: var(--font-weight-bold);
 		color: var(--color-accent);
 	}
 
@@ -222,8 +222,8 @@
 		border-radius: 50%;
 		background: none;
 		color: var(--color-text-muted);
-		font-size: 0.7rem;
-		font-weight: 700;
+		font-size: var(--font-size-xs);
+		font-weight: var(--font-weight-bold);
 		line-height: 1;
 		cursor: pointer;
 		touch-action: manipulation;
@@ -280,7 +280,7 @@
 	.about-heading {
 		font-family: var(--font-display);
 		font-size: var(--font-size-lg);
-		font-weight: 700;
+		font-weight: var(--font-weight-bold);
 		margin-bottom: var(--spacing-sm);
 		color: var(--color-accent);
 	}

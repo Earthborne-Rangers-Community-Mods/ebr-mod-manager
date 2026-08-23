@@ -139,7 +139,7 @@
 	.title {
 		font-family: var(--font-display);
 		font-size: var(--font-size-lg);
-		font-weight: 700;
+		font-weight: var(--font-weight-bold);
 		color: var(--color-accent);
 		margin-bottom: var(--spacing-sm);
 	}
@@ -184,7 +184,7 @@
 		border: none;
 		border-radius: var(--radius);
 		cursor: pointer;
-		font-weight: 600;
+		font-weight: var(--font-weight-medium);
 		text-decoration: none;
 		transition: background var(--transition-fast);
 		touch-action: manipulation;
@@ -204,7 +204,7 @@
 		border: 1px solid var(--color-primary);
 		border-radius: var(--radius);
 		cursor: pointer;
-		font-weight: 500;
+		font-weight: var(--font-weight-medium);
 		transition: background var(--transition-fast), color var(--transition-fast);
 		touch-action: manipulation;
 	}

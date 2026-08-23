@@ -213,7 +213,7 @@
 		border: none;
 		border-radius: var(--radius);
 		cursor: pointer;
-		font-weight: 600;
+		font-weight: var(--font-weight-medium);
 		transition: background var(--transition-fast), transform var(--transition-fast);
 		touch-action: manipulation;
 	}
@@ -234,7 +234,7 @@
 	.download-success {
 		font-size: var(--font-size-sm);
 		color: var(--color-success);
-		font-weight: 500;
+		font-weight: var(--font-weight-medium);
 		max-width: 16rem;
 		text-align: center;
 	}
@@ -254,7 +254,7 @@
 		border: 1px solid var(--color-primary);
 		border-radius: var(--radius);
 		cursor: pointer;
-		font-weight: 500;
+		font-weight: var(--font-weight-medium);
 		transition: background var(--transition-fast);
 		touch-action: manipulation;
 	}
