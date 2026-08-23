@@ -16,7 +16,7 @@
 import MarkdownIt from 'markdown-it';
 import taskLists from 'markdown-it-task-lists';
 
-function createRenderer(): MarkdownIt {
+function createRenderer(): InstanceType<typeof MarkdownIt> {
 	const md = new MarkdownIt({
 		html: true,
 		linkify: true,
@@ -47,7 +47,7 @@ function createRenderer(): MarkdownIt {
 		((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
 	md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
 		const token = tokens[idx];
-		const href = token.attrGet('href') ?? '';
+		const href = String(token.attrGet('href') ?? '');
 		if (/^https?:\/\//i.test(href)) {
 			token.attrSet('target', '_blank');
 			token.attrSet('rel', 'noopener noreferrer');
